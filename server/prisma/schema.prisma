@@ -1,0 +1,188 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AuthProvider {
+  local
+  google
+}
+
+enum Role {
+  buyer
+  seller
+  broker
+}
+
+enum CallPermission {
+  everyone
+  contacts
+  none
+}
+
+enum ListingStatus {
+  available
+  negotiation
+  sold
+}
+
+enum RoomType {
+  direct
+  meeting_room
+}
+
+enum CallType {
+  audio
+  video
+}
+
+enum CallStatus {
+  ringing
+  connected
+  rejected
+  missed
+  ended
+}
+
+model User {
+  id               String         @id @default(uuid()) @db.Uuid
+  full_name        String         @db.VarChar(100)
+  email            String         @unique @db.VarChar(255)
+  google_id        String?        @unique @db.VarChar(255)
+  auth_provider    AuthProvider   @default(local)
+  password_hash    String?        @db.VarChar(255)
+  role             Role
+  avatar_url       String?        @db.VarChar(512)
+  allow_calls_from CallPermission @default(everyone)
+  show_online      Boolean        @default(true)
+  created_at       DateTime       @default(now()) @db.Timestamptz
+
+  // Relations
+  password_reset_tokens PasswordResetToken[]
+  listings              Listing[]             @relation("UserListings")
+  rooms_created         Room[]                @relation("CreatedRooms")
+  room_participants     RoomParticipant[]
+  messages              Message[]
+  calls_made            CallLog[]             @relation("CallerLogs")
+  calls_received        CallLog[]             @relation("ReceiverLogs")
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  otp_hash   String   @db.VarChar(255)
+  expires_at DateTime @db.Timestamptz
+  used       Boolean  @default(false)
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Listing {
+  id           String        @id @default(uuid()) @db.Uuid
+  owner_id     String        @db.Uuid
+  title        String        @db.VarChar(150)
+  description  String        @db.Text
+  price        Decimal       @db.Decimal(12, 2)
+  area_size    Decimal       @db.Decimal(10, 2)
+  area_unit    String        @db.VarChar(20)
+  address_text String        @db.VarChar(255)
+  latitude     Float         @db.DoublePrecision
+  longitude    Float         @db.DoublePrecision
+  status       ListingStatus @default(available)
+  created_at   DateTime      @default(now()) @db.Timestamptz
+
+  // Relations
+  owner  User           @relation("UserListings", fields: [owner_id], references: [id])
+  images ListingImage[]
+  rooms  Room[]
+
+  @@index([owner_id, status])
+  @@map("listings")
+}
+
+model ListingImage {
+  id         String @id @default(uuid()) @db.Uuid
+  listing_id String @db.Uuid
+  image_url  String @db.VarChar(512)
+  sort_order Int    @default(0)
+
+  // Relations
+  listing Listing @relation(fields: [listing_id], references: [id], onDelete: Cascade)
+
+  @@map("listing_images")
+}
+
+model Room {
+  id         String   @id @default(uuid()) @db.Uuid
+  type       RoomType
+  name       String?  @db.VarChar(100)
+  listing_id String?  @db.Uuid
+  created_by String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  listing      Listing?          @relation(fields: [listing_id], references: [id])
+  creator      User              @relation("CreatedRooms", fields: [created_by], references: [id])
+  participants RoomParticipant[]
+  messages     Message[]
+  call_logs    CallLog[]
+
+  @@map("rooms")
+}
+
+model RoomParticipant {
+  room_id   String   @db.Uuid
+  user_id   String   @db.Uuid
+  joined_at DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  room Room @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([room_id, user_id])
+  @@map("room_participants")
+}
+
+model Message {
+  id         String   @id @default(uuid()) @db.Uuid
+  room_id    String   @db.Uuid
+  sender_id  String   @db.Uuid
+  content    String   @db.Text
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  room   Room @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [sender_id], references: [id])
+
+  @@index([room_id, created_at])
+  @@map("messages")
+}
+
+model CallLog {
+  id          String     @id @default(uuid()) @db.Uuid
+  caller_id   String     @db.Uuid
+  receiver_id String     @db.Uuid
+  room_id     String?    @db.Uuid
+  call_type   CallType
+  status      CallStatus
+  started_at  DateTime   @default(now()) @db.Timestamptz
+  ended_at    DateTime?  @db.Timestamptz
+
+  // Relations
+  caller   User  @relation("CallerLogs", fields: [caller_id], references: [id])
+  receiver User  @relation("ReceiverLogs", fields: [receiver_id], references: [id])
+  room     Room? @relation(fields: [room_id], references: [id])
+
+  @@index([caller_id, receiver_id, started_at])
+  @@map("call_logs")
+}
