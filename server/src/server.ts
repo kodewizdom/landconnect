@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { env } from "./config/env";
 import authRoutes from "./routes/auth.routes";
+import listingRoutes from "./routes/listing.routes";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // API Routes
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/listings", listingRoutes);
 
 // Global Error Handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
