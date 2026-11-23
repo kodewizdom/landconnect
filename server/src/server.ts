@@ -1,7 +1,8 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { env } from "./config/env";
+import authRoutes from "./routes/auth.routes";
 
 const app = express();
 
@@ -17,6 +18,25 @@ app.get("/health", (_req: Request, res: Response) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     service: "landconnect-backend",
+  });
+});
+
+// API Routes
+app.use("/api/v1/auth", authRoutes);
+
+// Global Error Handler
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const errorObj = err as { statusCode?: number; message?: string; stack?: string };
+  const statusCode = errorObj.statusCode || 500;
+  const message = errorObj.message || "Internal server error";
+
+  if (statusCode === 500) {
+    console.error("[ServerError]", err);
+  }
+
+  res.status(statusCode).json({
+    error: message,
+    ...(process.env.NODE_ENV === "development" && { stack: errorObj.stack }),
   });
 });
 
