@@ -9,6 +9,7 @@ import { ListingDetailScreen } from "../screens/modals/ListingDetailScreen";
 import { CreateListingScreen } from "../screens/modals/CreateListingScreen";
 import { MyListingsScreen } from "../screens/main/MyListingsScreen";
 import { ChatRoomScreen } from "../screens/modals/ChatRoomScreen";
+import { CallScreen } from "../screens/modals/CallScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -77,6 +78,14 @@ export const RootNavigator: React.FC = () => {
               headerTintColor: "#fff",
               headerTitleStyle: { fontWeight: "bold" },
             })}
+          />
+          <Stack.Screen
+            name="CallScreen"
+            component={CallScreen}
+            options={{
+              headerShown: false,
+              presentation: "fullScreenModal",
+            }}
           />
         </>
       )}

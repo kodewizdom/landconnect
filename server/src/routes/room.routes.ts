@@ -10,6 +10,12 @@ import {
 const router = Router();
 
 // Protected: All room endpoints require authentication
+router.get(
+  "/users/search",
+  authMiddleware,
+  (req, res, next) => roomController.searchUsers(req, res, next)
+);
+
 router.post(
   "/",
   authMiddleware,
@@ -27,6 +33,12 @@ router.get(
   "/:roomId/messages",
   authMiddleware,
   (req, res, next) => roomController.getRoomMessages(req, res, next)
+);
+
+router.post(
+  "/:roomId/messages",
+  authMiddleware,
+  (req, res, next) => roomController.createMessage(req, res, next)
 );
 
 router.post(

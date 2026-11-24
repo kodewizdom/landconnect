@@ -2,6 +2,7 @@ import { RoomType, Role } from "@prisma/client";
 import prisma from "../config/prisma";
 import { maskUser, MaskedUser } from "../utils/piiMask";
 import { CreateRoomInput, RoomMessagesQueryInput } from "../validators/room.validator";
+import { getIO } from "../sockets";
 
 export interface FormattedRoom {
   id: string;
@@ -103,7 +104,15 @@ export class RoomService {
         },
       });
 
-      return this.formatRoom(newRoom);
+      const formatted = this.formatRoom(newRoom);
+      const io = getIO();
+      if (io) {
+        distinctUsers.forEach((uid) => {
+          io.to(`user:${uid}`).emit("room:created", formatted);
+        });
+      }
+
+      return formatted;
     }
 
     // Multi-party meeting room
@@ -135,7 +144,15 @@ export class RoomService {
       },
     });
 
-    return this.formatRoom(newMeetingRoom);
+    const formatted = this.formatRoom(newMeetingRoom);
+    const io = getIO();
+    if (io) {
+      distinctUsers.forEach((uid) => {
+        io.to(`user:${uid}`).emit("room:created", formatted);
+      });
+    }
+
+    return formatted;
   }
 
   /**
@@ -225,6 +242,61 @@ export class RoomService {
   }
 
   /**
+   * REST message send fallback
+   */
+  async createMessage(
+    roomId: string,
+    userId: string,
+    content: string
+  ): Promise<FormattedMessage> {
+    const participant = await prisma.roomParticipant.findUnique({
+      where: {
+        room_id_user_id: {
+          room_id: roomId,
+          user_id: userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      const error = new Error("Forbidden: You are not a participant in this room");
+      (error as unknown as { statusCode: number }).statusCode = 403;
+      throw error;
+    }
+
+    const savedMessage = await prisma.message.create({
+      data: {
+        room_id: roomId,
+        sender_id: userId,
+        content: content.trim(),
+      },
+      include: { sender: true },
+    });
+
+    const formatted: FormattedMessage = {
+      id: savedMessage.id,
+      room_id: savedMessage.room_id,
+      content: savedMessage.content,
+      created_at: savedMessage.created_at,
+      sender: maskUser(savedMessage.sender),
+    };
+
+    const io = getIO();
+    if (io) {
+      io.to(`room:${roomId}`).emit("message:new", formatted);
+      const participants = await prisma.roomParticipant.findMany({
+        where: { room_id: roomId },
+        select: { user_id: true },
+      });
+      participants.forEach((p) => {
+        io.to(`user:${p.user_id}`).emit("message:new", formatted);
+      });
+    }
+
+    return formatted;
+  }
+
+  /**
    * Add participant to a room (allowed for room creator or brokers)
    */
   async addParticipant(roomId: string, currentUserId: string, newUserId: string): Promise<FormattedRoom> {
@@ -280,7 +352,52 @@ export class RoomService {
       },
     });
 
-    return this.formatRoom(updatedRoom!);
+    const formatted = this.formatRoom(updatedRoom!);
+    const io = getIO();
+    if (io) {
+      io.to(`user:${newUserId}`).emit("room:created", formatted);
+      io.to(`room:${roomId}`).emit("room:updated", formatted);
+    }
+
+    return formatted;
+  }
+
+  /**
+   * Search registered users for Brokers (excluding caller)
+   */
+  async searchUsers(
+    currentUserId: string,
+    query: string,
+    role?: string
+  ): Promise<Array<{ id: string; email: string; full_name: string; role: string; avatar_url: string | null }>> {
+    const where: any = {
+      id: { not: currentUserId },
+    };
+
+    if (role && (role === "buyer" || role === "seller" || role === "broker")) {
+      where.role = role as Role;
+    }
+
+    if (query && query.trim()) {
+      where.OR = [
+        { email: { contains: query.trim(), mode: "insensitive" } },
+        { full_name: { contains: query.trim(), mode: "insensitive" } },
+      ];
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      take: 20,
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+        avatar_url: true,
+      },
+    });
+
+    return users;
   }
 
   private formatRoom(room: any): FormattedRoom {

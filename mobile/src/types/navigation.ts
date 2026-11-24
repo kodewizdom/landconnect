@@ -22,4 +22,13 @@ export type RootStackParamList = {
   CreateListing: undefined;
   MyListings: undefined;
   ChatRoom: { roomId: string; title?: string };
+  CallScreen: {
+    roomId: string;
+    callId?: string;
+    callType: "audio" | "video";
+    callerName?: string;
+    receiverName?: string;
+    receiverId?: string;
+    isIncoming?: boolean;
+  };
 };

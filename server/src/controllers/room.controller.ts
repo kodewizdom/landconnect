@@ -47,6 +47,28 @@ export class RoomController {
     }
   }
 
+  async createMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const { content } = req.body;
+      if (!content || !content.trim()) {
+        res.status(400).json({ error: "Content is required" });
+        return;
+      }
+      const message = await roomService.createMessage(
+        req.params.roomId,
+        req.user.id,
+        content.trim()
+      );
+      res.status(201).json(message);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async addParticipant(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
@@ -59,6 +81,21 @@ export class RoomController {
         req.body.userId
       );
       res.status(200).json(updated);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async searchUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const query = (req.query.q as string) || "";
+      const role = (req.query.role as string) || "";
+      const users = await roomService.searchUsers(req.user.id, query, role);
+      res.status(200).json(users);
     } catch (err) {
       next(err);
     }

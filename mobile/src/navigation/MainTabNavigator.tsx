@@ -1,29 +1,14 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { MainTabParamList } from "../types/navigation";
 import { CommunityScreen } from "../screens/main/CommunityScreen";
 import { MapTabScreen } from "../screens/main/MapTabScreen";
+import { ChatListScreen } from "../screens/main/ChatListScreen";
+import { CallHistoryScreen } from "../screens/main/CallHistoryScreen";
 import { ProfileScreen } from "../screens/main/ProfileScreen";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-
-const ChatsPlaceholderScreen = () => (
-  <View style={styles.screen}>
-    <Ionicons name="chatbubbles" size={44} color="#1b5e20" />
-    <Text style={styles.title}>Chats & Meeting Rooms</Text>
-    <Text style={styles.subtitle}>Direct inquiries and 3-way broker negotiations.</Text>
-  </View>
-);
-
-const CallsPlaceholderScreen = () => (
-  <View style={styles.screen}>
-    <Ionicons name="call" size={44} color="#1b5e20" />
-    <Text style={styles.title}>In-App Audio & Video Calls</Text>
-    <Text style={styles.subtitle}>Zero-PII calls powered by ZegoCloud.</Text>
-  </View>
-);
 
 export const MainTabNavigator: React.FC = () => {
   return (
@@ -83,7 +68,7 @@ export const MainTabNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="Chats"
-        component={ChatsPlaceholderScreen}
+        component={ChatListScreen}
         options={{
           title: "Messages & Rooms",
           tabBarLabel: "Chats",
@@ -91,9 +76,9 @@ export const MainTabNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="Calls"
-        component={CallsPlaceholderScreen}
+        component={CallHistoryScreen}
         options={{
-          title: "Calls History",
+          title: "Call History",
           tabBarLabel: "Calls",
         }}
       />
@@ -108,25 +93,3 @@ export const MainTabNavigator: React.FC = () => {
     </Tab.Navigator>
   );
 };
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#f9fafb",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1b5e20",
-    marginTop: 12,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 6,
-    textAlign: "center",
-  },
-});

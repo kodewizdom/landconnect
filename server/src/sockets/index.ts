@@ -10,6 +10,12 @@ interface SocketData {
   user: User;
 }
 
+let ioInstance: SocketIOServer | null = null;
+
+export function getIO(): SocketIOServer | null {
+  return ioInstance;
+}
+
 export function initSocketIO(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
@@ -18,6 +24,8 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
       credentials: true,
     },
   });
+
+  ioInstance = io;
 
   // Socket Authentication Middleware
   io.use(async (socket: Socket, next) => {
@@ -57,7 +65,7 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
   io.on("connection", (socket: Socket) => {
     const { userId, user } = socket.data as SocketData;
 
-    // Join personal notification channel for incoming calls
+    // Join personal notification channel for incoming calls and room notifications
     const userChannel = `user:${userId}`;
     socket.join(userChannel);
     console.log(`[Socket.IO] User ${user.email} (${userId}) connected on channel ${userChannel}`);
@@ -124,13 +132,24 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
             include: { sender: true },
           });
 
-          // Broadcast message:new to everyone in the room with masked sender info
-          io.to(`room:${roomId}`).emit("message:new", {
+          const messagePayload = {
             id: savedMessage.id,
             room_id: savedMessage.room_id,
             content: savedMessage.content,
             created_at: savedMessage.created_at,
             sender: maskUser(savedMessage.sender),
+          };
+
+          // Broadcast message:new to everyone currently in the room
+          io.to(`room:${roomId}`).emit("message:new", messagePayload);
+
+          // Also broadcast to each participant's user channel so their room list updates in real time
+          const participants = await prisma.roomParticipant.findMany({
+            where: { room_id: roomId },
+            select: { user_id: true },
+          });
+          participants.forEach((p) => {
+            io.to(`user:${p.user_id}`).emit("message:new", messagePayload);
           });
         } catch (err) {
           console.error(`[Socket.IO] Error in message:send:`, err);
