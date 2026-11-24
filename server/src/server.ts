@@ -21,7 +21,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check endpoint
+// Root & Health check endpoints
+app.get("/", (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: "ok",
+    service: "LandConnect API",
+  });
+});
+
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",

@@ -20,11 +20,22 @@
         "MODIFY_AUDIO_SETTINGS",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA6R21pfMPdjAJwgUKeqWCOpWRNFMo0sqs"
+        }
+      }
     },
     "plugins": [
       "expo-asset",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b6f11207-5382-4ce7-9a84-52c569a24477"
+      }
+    },
+    "owner": "kooder"
   }
 }
