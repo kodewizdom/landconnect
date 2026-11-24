@@ -13,6 +13,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing } from "../../types/listing";
+import { Colors, formatINR } from "../../theme";
 
 export const MapTabScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -26,12 +27,6 @@ export const MapTabScreen: React.FC = () => {
     longitudeDelta: 0.35,
   };
 
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) return `₹${(price / 10000000).toFixed(2)} Cr`;
-    if (price >= 100000) return `₹${(price / 100000).toFixed(2)} Lakh`;
-    return `₹${price.toLocaleString("en-IN")}`;
-  };
-
   return (
     <View style={styles.container}>
       <MapView
@@ -41,7 +36,6 @@ export const MapTabScreen: React.FC = () => {
         showsUserLocation
         showsMyLocationButton
       >
-
         {listings.map((item) => (
           <Marker
             key={item.id}
@@ -49,7 +43,7 @@ export const MapTabScreen: React.FC = () => {
             onPress={() => setSelectedListing(item)}
           >
             <View style={styles.markerBadge}>
-              <Text style={styles.markerText}>{formatPrice(item.price)}</Text>
+              <Text style={styles.markerText}>{formatINR(item.price)}</Text>
             </View>
           </Marker>
         ))}
@@ -75,20 +69,25 @@ export const MapTabScreen: React.FC = () => {
             />
 
             <View style={styles.previewInfo}>
-              <Text style={styles.previewPrice}>{formatPrice(selectedListing.price)}</Text>
+              <Text style={styles.previewPrice}>{formatINR(selectedListing.price)}</Text>
               <Text style={styles.previewTitle} numberOfLines={1}>
                 {selectedListing.title}
               </Text>
-              <Text style={styles.previewSpecs}>
-                {selectedListing.area_size} {selectedListing.area_unit} • {selectedListing.address_text}
+              <Text style={styles.previewSpecs} numberOfLines={1}>
+                {selectedListing.area_size} {selectedListing.area_unit} •{" "}
+                {selectedListing.address_text}
               </Text>
+            </View>
+
+            <View style={styles.previewCTA}>
+              <Ionicons name="arrow-forward-circle" size={28} color={Colors.gold} />
             </View>
 
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={() => setSelectedListing(null)}
             >
-              <Ionicons name="close" size={18} color="#666" />
+              <Ionicons name="close" size={16} color={Colors.slate} />
             </TouchableOpacity>
           </TouchableOpacity>
         </View>
@@ -106,21 +105,21 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   markerBadge: {
-    backgroundColor: "#1b5e20",
+    backgroundColor: Colors.emerald,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: Colors.gold,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
   },
   markerText: {
-    color: "#fff",
+    color: Colors.ivory,
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
   previewContainer: {
     position: "absolute",
@@ -130,18 +129,18 @@ const styles = StyleSheet.create({
   },
   previewCard: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: Colors.ivory,
+    borderRadius: 16,
+    padding: 14,
     alignItems: "center",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
   },
   previewThumb: {
-    width: 70,
-    height: 70,
+    width: 64,
+    height: 64,
     borderRadius: 10,
   },
   previewInfo: {
@@ -149,23 +148,28 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   previewPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1b5e20",
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.gold,
   },
   previewTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#222",
+    color: Colors.charcoal,
     marginTop: 2,
   },
   previewSpecs: {
     fontSize: 12,
-    color: "#666",
+    color: Colors.slate,
     marginTop: 2,
   },
+  previewCTA: {
+    marginLeft: 8,
+  },
   closeBtn: {
-    padding: 6,
-    alignSelf: "flex-start",
+    position: "absolute",
+    top: 6,
+    right: 6,
+    padding: 4,
   },
 });

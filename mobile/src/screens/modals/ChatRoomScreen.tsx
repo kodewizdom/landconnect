@@ -496,7 +496,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
       {/* Property Context Banner */}
       {roomDetails?.listing && (
         <View style={styles.listingContextBar}>
-          <Ionicons name="business" size={16} color="#1b5e20" />
+          <Ionicons name="business" size={16} color="#C5A059" />
           <Text style={styles.listingContextTitle} numberOfLines={1}>
             {roomDetails.listing.title} • ₹{roomDetails.listing.price.toLocaleString("en-IN")}
           </Text>
@@ -505,7 +505,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#1b5e20" />
+          <ActivityIndicator size="large" color="#0B2B26" />
         </View>
       ) : (
         <FlatList
@@ -517,8 +517,8 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Ionicons name="lock-closed" size={32} color="#94a3b8" />
-              <Text style={styles.emptyChatTitle}>End-to-End Secure Negotiation</Text>
+              <Ionicons name="lock-closed-outline" size={36} color="#A0A8A6" />
+              <Text style={styles.emptyChatTitle}>END-TO-END SECURE NEGOTIATION</Text>
               <Text style={styles.emptyChatSub}>
                 Zero phone numbers or personal emails are shared. Negotiate prices,
                 terms, and conduct audio/video calls safely within LandConnect.
@@ -694,7 +694,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F8F7F4",
   },
   headerRightActions: {
     flexDirection: "row",
@@ -707,16 +707,16 @@ const styles = StyleSheet.create({
   listingContextBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ecfdf5",
+    backgroundColor: "#F5EDD8",
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: "#d1fae5",
+    borderBottomColor: "#E6E2D8",
   },
   listingContextTitle: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#065f46",
+    color: "#0B2B26",
     marginLeft: 6,
     flex: 1,
   },
@@ -735,21 +735,16 @@ const styles = StyleSheet.create({
     marginVertical: 14,
   },
   dateSeparatorPill: {
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "#E6E2D8",
     paddingHorizontal: 14,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 12,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
   },
   dateSeparatorText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
-    color: "#475569",
-    letterSpacing: 0.4,
+    color: "#636B69",
+    letterSpacing: 0.8,
   },
   emptyChat: {
     alignItems: "center",
@@ -758,14 +753,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   emptyChatTitle: {
-    fontSize: 15,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#334155",
+    color: "#636B69",
+    letterSpacing: 1.2,
     marginTop: 12,
   },
   emptyChatSub: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#636B69",
     textAlign: "center",
     marginTop: 6,
     lineHeight: 18,
@@ -785,7 +781,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#1b5e20",
+    backgroundColor: "#143D36",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
@@ -798,11 +794,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   bubbleMe: {
-    backgroundColor: "#1b5e20",
+    backgroundColor: "#0B2B26",
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     borderBottomLeftRadius: 4,
     elevation: 1,
     shadowColor: "#000",
@@ -819,28 +815,30 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0f172a",
+    color: "#181C1B",
   },
   senderRoleTag: {
-    backgroundColor: "#f1f5f9",
-    paddingHorizontal: 5,
+    backgroundColor: "#F5EDD8",
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
   },
   senderRoleText: {
     fontSize: 9,
     fontWeight: "700",
-    color: "#475569",
+    color: "#92610A",
   },
   messageText: {
     fontSize: 14,
     lineHeight: 20,
   },
   textMe: {
-    color: "#ffffff",
+    color: "#FFFFFF",
   },
   textOther: {
-    color: "#1e293b",
+    color: "#181C1B",
   },
   messageTimestamp: {
     fontSize: 10,
@@ -852,10 +850,10 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   timestampMe: {
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.7)",
   },
   timestampOther: {
-    color: "#94a3b8",
+    color: "#A0A8A6",
   },
   typingContainer: {
     paddingHorizontal: 16,
@@ -864,40 +862,40 @@ const styles = StyleSheet.create({
   typingText: {
     fontSize: 11,
     fontStyle: "italic",
-    color: "#64748b",
+    color: "#636B69",
   },
   inputBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 12,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: "#E6E2D8",
   },
   textInput: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F8F7F4",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E6E2D8",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 14,
-    color: "#0f172a",
+    color: "#181C1B",
     maxHeight: 100,
   },
   sendBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#1b5e20",
+    backgroundColor: "#0B2B26",
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 8,
   },
   sendBtnDisabled: {
-    backgroundColor: "#94a3b8",
+    backgroundColor: "#E6E2D8",
   },
   // Modal styles
   modalBackdrop: {
@@ -1039,7 +1037,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1b5e20",
+    backgroundColor: "#0B2B26",
     paddingVertical: 12,
     borderRadius: 10,
     marginTop: 10,

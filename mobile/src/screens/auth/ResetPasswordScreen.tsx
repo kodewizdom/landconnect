@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -47,7 +48,7 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
         newPassword,
       });
 
-      Alert.alert("Success", res.message || "Password updated successfully!", [
+      Alert.alert("Success", res.message || "Password updated successfully.", [
         {
           text: "Log In Now",
           onPress: () => navigation.navigate("Login"),
@@ -66,40 +67,46 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>
+      {/* Header Crest Block */}
+      <View style={styles.crestHeader}>
+        <Text style={styles.brandTitle}>LANDCONNECT</Text>
+        <Text style={styles.brandSubtitle}>Reset Password</Text>
+        <View style={styles.diamondSeparator} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.instructionText}>
           Enter the 6-digit OTP code sent to your email and set a new password.
         </Text>
 
-        <View style={styles.card}>
-          <Text style={styles.inputLabel}>Email Address</Text>
+        <View style={styles.formCard}>
+          <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. user@landconnect.com"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
           />
 
-          <Text style={styles.inputLabel}>6-Digit OTP Code</Text>
+          <Text style={styles.inputLabel}>6-DIGIT OTP CODE</Text>
           <TextInput
             style={[styles.input, styles.otpInput]}
             placeholder="123456"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             keyboardType="number-pad"
             maxLength={6}
             value={otp}
             onChangeText={setOtp}
           />
 
-          <Text style={styles.inputLabel}>New Password (min 6 chars)</Text>
+          <Text style={styles.inputLabel}>NEW PASSWORD (MIN 6 CHARS)</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             secureTextEntry
             value={newPassword}
             onChangeText={setNewPassword}
@@ -111,7 +118,7 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#C5A059" />
             ) : (
               <Text style={styles.primaryBtnText}>Reset Password</Text>
             )}
@@ -124,7 +131,7 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
             <Text style={styles.backBtnText}>Return to Login</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };
@@ -132,80 +139,102 @@ export const ResetPasswordScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
-    justifyContent: "center",
+    backgroundColor: "#F8F7F4",
   },
-  content: {
-    padding: 24,
+  crestHeader: {
+    backgroundColor: "#0B2B26",
+    paddingTop: 60,
+    paddingBottom: 36,
+    alignItems: "center",
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#1b5e20",
-    textAlign: "center",
+  brandTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 4,
+    color: "#C5A059",
   },
-  subtitle: {
+  brandSubtitle: {
+    fontSize: 12,
+    color: "rgba(197,160,89,0.7)",
+    marginTop: 4,
+    letterSpacing: 1.5,
+  },
+  diamondSeparator: {
+    width: 8,
+    height: 8,
+    backgroundColor: "#C5A059",
+    transform: [{ rotate: "45deg" }],
+    marginTop: 16,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
+  instructionText: {
     fontSize: 14,
-    color: "#555",
-    marginTop: 6,
-    marginBottom: 20,
+    color: "#636B69",
     textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
   },
-  card: {
-    backgroundColor: "#fff",
-    padding: 20,
+  formCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
+    padding: 24,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#333",
+    color: "#636B69",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 6,
-    marginTop: 4,
+    marginTop: 14,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    borderBottomWidth: 1.5,
+    borderColor: "#E6E2D8",
+    paddingVertical: 10,
     fontSize: 15,
-    color: "#222",
-    backgroundColor: "#fafbfc",
-    marginBottom: 10,
+    color: "#181C1B",
+    backgroundColor: "transparent",
+    marginBottom: 4,
   },
   otpInput: {
     fontSize: 20,
     letterSpacing: 6,
     textAlign: "center",
-    fontWeight: "bold",
-    color: "#1b5e20",
+    fontWeight: "700",
+    color: "#C5A059",
   },
   primaryBtn: {
-    backgroundColor: "#1b5e20",
-    paddingVertical: 14,
+    backgroundColor: "#0B2B26",
     borderRadius: 10,
+    paddingVertical: 15,
+    marginTop: 24,
     alignItems: "center",
-    marginTop: 10,
   },
   btnDisabled: {
     opacity: 0.7,
   },
   primaryBtnText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "bold",
+    fontWeight: "700",
+    letterSpacing: 0.6,
   },
   backBtn: {
-    marginTop: 14,
+    marginTop: 16,
     alignItems: "center",
   },
   backBtnText: {
-    color: "#1b5e20",
+    color: "#C5A059",
     fontSize: 14,
     fontWeight: "600",
   },

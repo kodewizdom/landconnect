@@ -1,5 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -19,64 +26,81 @@ export const ProfileScreen: React.FC = () => {
     ]);
   };
 
+  // Build initials from name
+  const initials = (user?.full_name || "LC")
+    .split(" ")
+    .slice(0, 2)
+    .map((w: string) => w[0] || "")
+    .join("")
+    .toUpperCase();
+
+  const roleLabel = role
+    ? `${role.toUpperCase()} MEMBER`
+    : "MEMBER";
+
   return (
     <View style={styles.container}>
-      {/* Profile Header */}
-      <View style={styles.headerCard}>
-        <Ionicons name="person-circle" size={72} color="#1b5e20" />
+      {/* Header banner */}
+      <View style={styles.headerBanner}>
+        <View style={styles.avatarCircle}>
+          <Text style={styles.avatarInitials}>{initials}</Text>
+        </View>
         <Text style={styles.userName}>{user?.full_name || "LandConnect User"}</Text>
-        <Text style={styles.userEmail}>{user?.email}</Text>
-
         <View style={styles.roleBadge}>
-          <Text style={styles.roleBadgeText}>{role?.toUpperCase()} ACCOUNT</Text>
+          <Text style={styles.roleBadgeText}>{roleLabel}</Text>
         </View>
       </View>
 
-      {/* Role-Specific Management Actions */}
-      {isSellerOrBroker && (
+      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollInner}>
+        {/* Property Management Card */}
+        {isSellerOrBroker && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionEyebrow}>PROPERTY MANAGEMENT</Text>
+
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => navigation.navigate("CreateListing")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#C5A059" style={styles.menuIcon} />
+              <Text style={styles.menuLabel}>Post Listing</Text>
+              <Ionicons name="chevron-forward" size={18} color="#E6E2D8" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuRow, styles.menuRowLast]}
+              onPress={() => navigation.navigate("MyListings")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="home-outline" size={20} color="#C5A059" style={styles.menuIcon} />
+              <Text style={styles.menuLabel}>My Listings</Text>
+              <Ionicons name="chevron-forward" size={18} color="#E6E2D8" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Privacy & Security Card */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Property Management</Text>
+          <Text style={styles.sectionEyebrow}>PRIVACY & SECURITY</Text>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate("CreateListing")}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="add-circle-outline" size={20} color="#1b5e20" />
-              <Text style={styles.menuText}>Post New Land Plot</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#999" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => navigation.navigate("MyListings")}
-          >
-            <View style={styles.menuLeft}>
-              <Ionicons name="business-outline" size={20} color="#1b5e20" />
-              <Text style={styles.menuText}>My Land Listings</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.privacyRow}>
+            <Ionicons name="shield-checkmark" size={20} color="#1A6B45" style={styles.menuIcon} />
+            <Text style={styles.privacyText}>
+              Your email and phone number are never exposed to other buyers, sellers, or brokers. All communication goes through LandConnect's zero-PII secure channel.
+            </Text>
+          </View>
         </View>
-      )}
 
-      {/* Privacy Guarantee Info */}
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Privacy & Security</Text>
-        <View style={styles.infoRow}>
-          <Ionicons name="shield-checkmark-outline" size={20} color="#2e7d32" />
-          <Text style={styles.infoText}>
-            Your email and phone number are never exposed to other buyers, sellers, or brokers.
-          </Text>
-        </View>
-      </View>
-
-      {/* Logout */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={20} color="#dc2626" style={{ marginRight: 8 }} />
-        <Text style={styles.logoutBtnText}>Log Out</Text>
-      </TouchableOpacity>
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={18} color="#8B1A1A" style={{ marginRight: 8 }} />
+          <Text style={styles.logoutBtnText}>Sign Out</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 };
@@ -84,101 +108,121 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
-    padding: 16,
+    backgroundColor: "#F8F7F4",
   },
-  headerCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+  headerBanner: {
+    backgroundColor: "#0B2B26",
+    paddingTop: 60,
+    paddingBottom: 32,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 16,
+  },
+  avatarCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#143D36",
+    borderWidth: 2.5,
+    borderColor: "#C5A059",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarInitials: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#C5A059",
   },
   userName: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#222",
-    marginTop: 6,
-  },
-  userEmail: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 2,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginTop: 12,
   },
   roleBadge: {
-    backgroundColor: "#e8f5e9",
+    backgroundColor: "#F5EDD8",
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 10,
+    paddingVertical: 3,
+    marginTop: 8,
   },
   roleBadgeText: {
-    color: "#1b5e20",
-    fontWeight: "bold",
-    fontSize: 11,
+    color: "#92610A",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.0,
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollInner: {
+    padding: 16,
+    paddingBottom: 32,
   },
   sectionCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     marginBottom: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    overflow: "hidden",
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#666",
-    marginBottom: 12,
-    textTransform: "uppercase",
-  },
-  menuItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  sectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: "#636B69",
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderColor: "#E6E2D8",
   },
-  menuLeft: {
+  menuRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F8F7F4",
   },
-  menuText: {
+  menuRowLast: {
+    borderBottomWidth: 0,
+  },
+  menuIcon: {
+    marginRight: 12,
+  },
+  menuLabel: {
     fontSize: 15,
-    color: "#222",
-    marginLeft: 12,
-    fontWeight: "500",
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  infoText: {
-    fontSize: 13,
-    color: "#555",
-    marginLeft: 10,
+    color: "#181C1B",
     flex: 1,
-    lineHeight: 18,
+  },
+  privacyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  privacyText: {
+    fontSize: 13,
+    color: "#636B69",
+    flex: 1,
+    lineHeight: 20,
   },
   logoutBtn: {
-    flexDirection: "row",
-    backgroundColor: "#fee2e2",
-    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#8B1A1A",
+    borderRadius: 10,
     paddingVertical: 14,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    margin: 0,
+    marginBottom: 8,
   },
   logoutBtnText: {
-    color: "#dc2626",
-    fontWeight: "bold",
+    color: "#8B1A1A",
+    fontWeight: "700",
     fontSize: 15,
   },
 });

@@ -50,6 +50,14 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     Constants.appOwnership === "expo" ||
     Constants.executionEnvironment === "storeClient";
 
+  // Initials from counterpartName
+  const initials = counterpartName
+    .split(" ")
+    .slice(0, 2)
+    .map((w: string) => w[0] || "")
+    .join("")
+    .toUpperCase();
+
   // Socket event listeners for signaling
   useEffect(() => {
     if (!socket) return;
@@ -128,12 +136,12 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Simulation / Expo Go Guard Banner */}
+      {/* Expo Go Guard Banner */}
       {isExpoGo && (
         <View style={styles.expoGuardBadge}>
-          <Ionicons name="information-circle" size={14} color="#f59e0b" />
+          <Ionicons name="information-circle" size={14} color="#C5A059" />
           <Text style={styles.expoGuardText}>
-            Expo Go Mode • Real-Time Signaling Active
+            Expo Go Mode - Real-Time Signaling Active
           </Text>
         </View>
       )}
@@ -155,7 +163,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
               : callStatus === "ringing"
               ? "Ringing..."
               : callStatus === "connected"
-              ? `Connected • ${formatTimer(elapsedSeconds)}`
+              ? `Connected - ${formatTimer(elapsedSeconds)}`
               : "Call Ended"}
           </Text>
         </View>
@@ -165,7 +173,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
       <View style={styles.centerStage}>
         {callType === "video" && isVideoEnabled ? (
           <View style={styles.videoPlaceholder}>
-            <Ionicons name="videocam" size={64} color="#475569" />
+            <Ionicons name="videocam-outline" color="#C5A059" size={48} />
             <Text style={styles.videoPlaceholderText}>
               Video Stream Connected
             </Text>
@@ -174,15 +182,19 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
         ) : (
           <View style={styles.avatarGlow}>
             <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={72} color="#ffffff" />
+              <Text style={styles.avatarInitials}>{initials}</Text>
             </View>
           </View>
         )}
 
+        {callStatus === "connected" && (
+          <Text style={styles.durationTimer}>{formatTimer(elapsedSeconds)}</Text>
+        )}
+
         <View style={styles.securityNote}>
-          <Ionicons name="shield-checkmark" size={16} color="#22c55e" />
+          <Ionicons name="shield-checkmark-outline" color="#1A6B45" size={16} />
           <Text style={styles.securityNoteText}>
-            End-to-End Encrypted • Zero-PII Protected
+            End-to-End Encrypted - Zero-PII Protected
           </Text>
         </View>
       </View>
@@ -201,7 +213,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
             <Ionicons
               name={isMuted ? "mic-off" : "mic"}
               size={24}
-              color={isMuted ? "#ef4444" : "#ffffff"}
+              color="#ffffff"
             />
             <Text style={styles.controlLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
           </TouchableOpacity>
@@ -218,7 +230,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
               <Ionicons
                 name={isVideoEnabled ? "videocam" : "videocam-off"}
                 size={24}
-                color={!isVideoEnabled ? "#ef4444" : "#ffffff"}
+                color="#ffffff"
               />
               <Text style={styles.controlLabel}>
                 {isVideoEnabled ? "Stop Video" : "Start Video"}
@@ -261,7 +273,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#0B2B26",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 48,
@@ -270,8 +282,8 @@ const styles = StyleSheet.create({
   expoGuardBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderColor: "rgba(245, 158, 11, 0.4)",
+    backgroundColor: "rgba(197,160,89,0.15)",
+    borderColor: "rgba(197,160,89,0.4)",
     borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -280,7 +292,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   expoGuardText: {
-    color: "#f59e0b",
+    color: "#C5A059",
     fontSize: 11,
     fontWeight: "600",
   },
@@ -288,23 +300,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   callTypeTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#94a3b8",
-    letterSpacing: 1.5,
+    color: "#A0A8A6",
+    letterSpacing: 1.8,
     marginBottom: 8,
   },
   counterpartName: {
     fontSize: 26,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 8,
     textAlign: "center",
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
@@ -314,12 +326,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#22c55e",
+    backgroundColor: "#C5A059",
   },
   statusText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#cbd5e1",
+    color: "#A0A8A6",
   },
   centerStage: {
     alignItems: "center",
@@ -330,7 +342,7 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: "rgba(27, 94, 32, 0.25)",
+    backgroundColor: "rgba(197,160,89,0.15)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
@@ -339,31 +351,42 @@ const styles = StyleSheet.create({
     width: 128,
     height: 128,
     borderRadius: 64,
-    backgroundColor: "#1b5e20",
+    backgroundColor: "#143D36",
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarInitials: {
+    fontSize: 42,
+    fontWeight: "700",
+    color: "#C5A059",
   },
   videoPlaceholder: {
     width: width - 48,
     height: (width - 48) * 0.75,
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "rgba(197,160,89,0.3)",
   },
   videoPlaceholderText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#cbd5e1",
+    color: "#A0A8A6",
     marginTop: 12,
   },
   videoRoomSub: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#A0A8A6",
     marginTop: 4,
+  },
+  durationTimer: {
+    color: "#C5A059",
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 12,
   },
   securityNote: {
     flexDirection: "row",
@@ -372,7 +395,7 @@ const styles = StyleSheet.create({
   },
   securityNoteText: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#636B69",
     fontWeight: "500",
   },
   controlsContainer: {
@@ -391,14 +414,14 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   controlBtnActive: {
-    backgroundColor: "#334155",
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   controlLabel: {
     fontSize: 10,
-    color: "#94a3b8",
+    color: "#A0A8A6",
     marginTop: 4,
     fontWeight: "600",
   },
@@ -406,11 +429,11 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#ef4444",
+    backgroundColor: "#8B1A1A",
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
-    shadowColor: "#ef4444",
+    shadowColor: "#8B1A1A",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 10,

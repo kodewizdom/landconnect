@@ -23,7 +23,7 @@ export const RootNavigator: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1b5e20" />
+        <ActivityIndicator size="large" color="#C5A059" />
       </View>
     );
   }
@@ -41,9 +41,9 @@ export const RootNavigator: React.FC = () => {
             options={{
               headerShown: true,
               title: "Property Details",
-              headerStyle: { backgroundColor: "#1b5e20" },
-              headerTintColor: "#fff",
-              headerTitleStyle: { fontWeight: "bold" },
+              headerStyle: { backgroundColor: "#0B2B26" },
+              headerTintColor: "#FFFFFF",
+              headerTitleStyle: { fontWeight: "700", fontSize: 16 },
             }}
           />
           <Stack.Screen
@@ -52,9 +52,9 @@ export const RootNavigator: React.FC = () => {
             options={{
               headerShown: true,
               title: "Post Land Plot",
-              headerStyle: { backgroundColor: "#1b5e20" },
-              headerTintColor: "#fff",
-              headerTitleStyle: { fontWeight: "bold" },
+              headerStyle: { backgroundColor: "#0B2B26" },
+              headerTintColor: "#FFFFFF",
+              headerTitleStyle: { fontWeight: "700", fontSize: 16 },
             }}
           />
           <Stack.Screen
@@ -63,9 +63,9 @@ export const RootNavigator: React.FC = () => {
             options={{
               headerShown: true,
               title: "My Listings",
-              headerStyle: { backgroundColor: "#1b5e20" },
-              headerTintColor: "#fff",
-              headerTitleStyle: { fontWeight: "bold" },
+              headerStyle: { backgroundColor: "#0B2B26" },
+              headerTintColor: "#FFFFFF",
+              headerTitleStyle: { fontWeight: "700", fontSize: 16 },
             }}
           />
           <Stack.Screen
@@ -74,9 +74,9 @@ export const RootNavigator: React.FC = () => {
             options={({ route }) => ({
               headerShown: true,
               title: route.params.title || "Inquiry Room",
-              headerStyle: { backgroundColor: "#1b5e20" },
-              headerTintColor: "#fff",
-              headerTitleStyle: { fontWeight: "bold" },
+              headerStyle: { backgroundColor: "#0B2B26" },
+              headerTintColor: "#FFFFFF",
+              headerTitleStyle: { fontWeight: "700", fontSize: 16 },
             })}
           />
           <Stack.Screen
@@ -98,6 +98,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f4f6f8",
+    backgroundColor: "#0B2B26",
   },
 });

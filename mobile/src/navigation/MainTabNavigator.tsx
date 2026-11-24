@@ -1,6 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MainTabParamList } from "../types/navigation";
 import { CommunityScreen } from "../screens/main/CommunityScreen";
 import { MapTabScreen } from "../screens/main/MapTabScreen";
@@ -11,25 +12,32 @@ import { ProfileScreen } from "../screens/main/ProfileScreen";
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export const MainTabNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 60 + (insets.bottom ?? 0);
+
   return (
     <Tab.Navigator
       initialRouteName="Community"
       screenOptions={({ route }) => ({
-        headerStyle: { backgroundColor: "#1b5e20" },
-        headerTintColor: "#fff",
-        headerTitleStyle: { fontWeight: "bold", fontSize: 18 },
-        tabBarActiveTintColor: "#1b5e20",
-        tabBarInactiveTintColor: "#6b7280",
+        headerStyle: { backgroundColor: "#0B2B26" },
+        headerTintColor: "#FFFFFF",
+        headerTitleStyle: { fontWeight: "700", letterSpacing: 0.6, fontSize: 16 },
+        tabBarActiveTintColor: "#C5A059",
+        tabBarInactiveTintColor: "#636B69",
         tabBarStyle: {
-          paddingBottom: 6,
-          paddingTop: 6,
-          height: 62,
-          backgroundColor: "#ffffff",
-          borderTopColor: "#e5e7eb",
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 0,
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
+          elevation: 12,
+          height: tabBarHeight,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
+          letterSpacing: 0.4,
+          marginBottom: 2,
         },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = "home";

@@ -16,17 +16,20 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../types/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useSocket } from "../../context/SocketContext";
 import { roomApi } from "../../api/room.api";
 import { Room, UserSearchResult } from "../../types/chat";
+import { formatTime12Hour } from "../../utils/dateFormat";
 
 export const ChatListScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user: currentUser } = useAuthStore();
   const { socket } = useSocket();
+  const insets = useSafeAreaInsets();
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,10 +127,9 @@ export const ChatListScreen: React.FC = () => {
       if (found) {
         handleSelectUser(found);
       } else {
-        // Fallback demo user if search returned empty
         const role = email.includes("buyer") ? "buyer" : "seller";
         handleSelectUser({
-          id: email, // If backend supports email search or fallback
+          id: email,
           email,
           full_name: role === "buyer" ? "Demo Buyer" : "Demo Seller",
           role,
@@ -135,7 +137,6 @@ export const ChatListScreen: React.FC = () => {
         });
       }
     } catch {
-      // Offline / direct fallback
       const role = email.includes("buyer") ? "buyer" : "seller";
       handleSelectUser({
         id: email,
@@ -211,20 +212,6 @@ export const ChatListScreen: React.FC = () => {
     return "Inquiry Room";
   };
 
-  const formatTime = (dateString?: string | null) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return date.toLocaleDateString();
-  };
-
   const renderRoomItem = ({ item, index }: { item: Room; index: number }) => {
     const title = getRoomTitle(item);
     const isGroup = item.type === "group" || item.type === "meeting_room";
@@ -232,6 +219,12 @@ export const ChatListScreen: React.FC = () => {
     const otherParticipants = (item.participants || []).filter(
       (p) => p.user_id !== currentUser?.id
     );
+    const initials = title
+      .split(" ")
+      .slice(0, 2)
+      .map((w: string) => w[0])
+      .join("")
+      .toUpperCase();
 
     return (
       <TouchableOpacity
@@ -245,114 +238,85 @@ export const ChatListScreen: React.FC = () => {
           })
         }
       >
-        <View style={styles.avatarWrapper}>
-          {item.listing?.cover_image ? (
-            <Image
-              source={{ uri: item.listing.cover_image }}
-              style={styles.avatarImage}
-            />
+        {/* Avatar */}
+        <View style={[styles.avatar, isGroup ? styles.avatarGroup : styles.avatarDirect]}>
+          {item.listing?.cover_image && !isGroup ? (
+            <Image source={{ uri: item.listing.cover_image }} style={styles.avatarImage} />
+          ) : isGroup ? (
+            <Ionicons name="people" size={20} color="#FFFFFF" />
           ) : (
-            <View
-              style={[
-                styles.avatarFallback,
-                isGroup && { backgroundColor: "#0284c7" },
-              ]}
-            >
-              <Ionicons
-                name={isGroup ? "people" : "person"}
-                size={24}
-                color="#ffffff"
-              />
-            </View>
-          )}
-          {isGroup && (
-            <View style={styles.groupBadgeDot}>
-              <Ionicons name="shield-checkmark" size={10} color="#ffffff" />
-            </View>
+            <Text style={styles.avatarInitials}>{initials}</Text>
           )}
         </View>
 
+        {/* Center content */}
         <View style={styles.roomContent}>
-          <View style={styles.roomHeaderRow}>
-            <Text style={styles.roomTitle} numberOfLines={1}>
-              {title}
+          <Text style={styles.roomTitle} numberOfLines={1}>{title}</Text>
+          {item.listing?.title && (
+            <Text style={styles.listingSubtitle} numberOfLines={1}>
+              {item.listing.title}
             </Text>
-            <Text style={styles.roomTime}>
-              {formatTime(lastMsg?.created_at || item.updated_at || item.created_at)}
-            </Text>
-          </View>
-
-          <View style={styles.participantsBadgeRow}>
-            <View
-              style={[
-                styles.typeTag,
-                isGroup ? styles.typeTagGroup : styles.typeTagDirect,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.typeTagText,
-                  isGroup ? styles.typeTagTextGroup : styles.typeTagTextDirect,
-                ]}
-              >
-                {isGroup ? "3-Way Negotiation" : "Direct Inquiry"}
-              </Text>
-            </View>
-
-            {otherParticipants.slice(0, 2).map((p, pIdx) => {
-              const uniqueKey = p.user_id || p.user?.id || `${item.id}-part-${pIdx}`;
-              return (
-                <View key={uniqueKey} style={styles.roleTag}>
-                  <Text style={styles.roleTagText}>
-                    {(p.user?.role || "USER").toUpperCase()}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-
+          )}
           <Text style={styles.lastMessageText} numberOfLines={1}>
-            {lastMsg ? lastMsg.content : "Tap to open chat & secure call"}
+            {lastMsg ? lastMsg.content : "Tap to open chat and secure call"}
           </Text>
+        </View>
+
+        {/* Right column */}
+        <View style={styles.roomRight}>
+          <Text style={styles.roomTime}>
+            {lastMsg?.created_at || item.updated_at || item.created_at
+              ? formatTime12Hour(lastMsg?.created_at || item.updated_at || item.created_at)
+              : ""}
+          </Text>
+          <Ionicons
+            name={isGroup ? "people-outline" : "chatbubble-outline"}
+            size={14}
+            color="#E6E2D8"
+            style={{ marginTop: 4 }}
+          />
         </View>
       </TouchableOpacity>
     );
   };
 
   const safeRooms = Array.isArray(rooms) ? rooms : [];
+  const directRooms = safeRooms.filter((r) => r.type === "direct" || (!r.type));
+  const groupRooms = safeRooms.filter((r) => r.type === "group" || r.type === "meeting_room");
+
+  const listData: Array<{ kind: "eyebrow"; label: string } | { kind: "room"; item: Room; index: number }> = [];
+  if (directRooms.length > 0) {
+    listData.push({ kind: "eyebrow", label: "DIRECT INQUIRIES" });
+    directRooms.forEach((r, i) => listData.push({ kind: "room", item: r, index: i }));
+  }
+  if (groupRooms.length > 0) {
+    listData.push({ kind: "eyebrow", label: "BROKER MEETING ROOMS" });
+    groupRooms.forEach((r, i) => listData.push({ kind: "room", item: r, index: i + directRooms.length }));
+  }
 
   return (
     <View style={styles.container}>
-      {/* Broker Action Banner */}
-      {currentUser?.role === "broker" && (
-        <View style={styles.brokerBanner}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.brokerBannerTitle}>Broker Management</Text>
-            <Text style={styles.brokerBannerSub}>
-              Bridge buyers & sellers in 3-way negotiation rooms
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.newMeetingBtn}
-            onPress={() => setIsModalVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add-circle" size={18} color="#ffffff" />
-            <Text style={styles.newMeetingText}>New Meeting</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#1b5e20" />
+          <ActivityIndicator size="large" color="#0B2B26" />
           <Text style={styles.loadingText}>Loading conversations...</Text>
         </View>
       ) : (
         <FlatList
-          data={safeRooms}
-          keyExtractor={(item, index) => item?.id || `room-${index}`}
-          renderItem={renderRoomItem}
+          data={safeRooms.length === 0 ? [] : listData}
+          keyExtractor={(entry, i) => {
+            if ((entry as any).kind === "eyebrow") return `eyebrow-${(entry as any).label}`;
+            return (entry as any).item?.id || `room-${i}`;
+          }}
+          renderItem={({ item: entry }) => {
+            if ((entry as any).kind === "eyebrow") {
+              return (
+                <Text style={styles.eyebrow}>{(entry as any).label}</Text>
+              );
+            }
+            const e = entry as { kind: "room"; item: Room; index: number };
+            return renderRoomItem({ item: e.item, index: e.index });
+          }}
           contentContainerStyle={
             safeRooms.length === 0 ? styles.emptyContainer : styles.listContent
           }
@@ -360,54 +324,67 @@ export const ChatListScreen: React.FC = () => {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={onRefresh}
-              colors={["#1b5e20"]}
+              colors={["#0B2B26"]}
+              tintColor="#0B2B26"
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons
                 name="chatbubbles-outline"
-                size={64}
-                color="#94a3b8"
+                size={56}
+                color="#E6E2D8"
                 style={{ marginBottom: 16 }}
               />
-              <Text style={styles.emptyTitle}>No Conversations Yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Inquire on any land listing from the Explore tab to start a
-                private negotiation or audio/video call.
+              <Text style={styles.emptyEyebrow}>NO ACTIVE ROOMS</Text>
+              <Text style={styles.emptyBody}>
+                Start a conversation from any listing
               </Text>
             </View>
           }
         />
       )}
 
+      {/* Broker FAB */}
+      {currentUser?.role === "broker" && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 16 }]}
+          onPress={() => setIsModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={24} color="#C5A059" />
+        </TouchableOpacity>
+      )}
+
       {/* New 3-Way Meeting Modal for Brokers */}
       <Modal
         visible={isModalVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.meetingModal}>
+            {/* Handle bar */}
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Host 3-Way Meeting</Text>
+              <Text style={styles.modalTitle}>Host Negotiation Room</Text>
               <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
+                <Ionicons name="close" size={24} color="#636B69" />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSubtitle}>
-                Create a secure negotiation room connecting you, the buyer, and
-                the land seller.
+                Create a secure negotiation room connecting you, the buyer, and the land seller.
               </Text>
 
               <Text style={styles.inputLabel}>Meeting / Property Title *</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="e.g. 5-Acre Mysore Highway Deal"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor="#A0A8A6"
                 value={meetingTitle}
                 onChangeText={setMeetingTitle}
               />
@@ -416,7 +393,7 @@ export const ChatListScreen: React.FC = () => {
               <TextInput
                 style={styles.modalInput}
                 placeholder="Paste listing UUID if applicable"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor="#A0A8A6"
                 value={listingId}
                 onChangeText={setListingId}
               />
@@ -429,8 +406,8 @@ export const ChatListScreen: React.FC = () => {
                   onPress={() => handleAddDemoUser("buyer@landconnect.com")}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="person-add" size={14} color="#0284c7" />
-                  <Text style={styles.demoChipText}>+ Demo Buyer</Text>
+                  <Ionicons name="person-add" size={14} color="#C5A059" />
+                  <Text style={styles.demoChipText}>Demo Buyer</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -438,23 +415,23 @@ export const ChatListScreen: React.FC = () => {
                   onPress={() => handleAddDemoUser("seller@landconnect.com")}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="person-add" size={14} color="#059669" />
-                  <Text style={styles.demoChipText}>+ Demo Seller</Text>
+                  <Ionicons name="person-add" size={14} color="#C5A059" />
+                  <Text style={styles.demoChipText}>Demo Seller</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Live Search by Email or Name */}
               <Text style={styles.inputLabel}>Search Users by Email / Name</Text>
               <View style={styles.searchBox}>
-                <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 6 }} />
+                <Ionicons name="search" size={16} color="#A0A8A6" style={{ marginRight: 6 }} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Type email or name to search..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor="#A0A8A6"
                   value={searchQuery}
                   onChangeText={handleSearchUsers}
                 />
-                {isSearching && <ActivityIndicator size="small" color="#1b5e20" />}
+                {isSearching && <ActivityIndicator size="small" color="#0B2B26" />}
               </View>
 
               {/* Search Results Dropdown */}
@@ -470,7 +447,7 @@ export const ChatListScreen: React.FC = () => {
                         <Text style={styles.resultName}>{user.full_name}</Text>
                         <Text style={styles.resultEmail}>{user.email}</Text>
                       </View>
-                      <View style={styles.roleTag}>
+                      <View style={styles.roleTagSmall}>
                         <Text style={styles.roleTagText}>{user.role.toUpperCase()}</Text>
                       </View>
                     </TouchableOpacity>
@@ -492,10 +469,10 @@ export const ChatListScreen: React.FC = () => {
                     <View key={p.id || `selected-p-${idx}`} style={styles.selectedBadge}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.selectedName}>{p.full_name}</Text>
-                        <Text style={styles.selectedSub}>{p.email} • {p.role.toUpperCase()}</Text>
+                        <Text style={styles.selectedSub}>{p.email} - {p.role.toUpperCase()}</Text>
                       </View>
                       <TouchableOpacity onPress={() => handleRemoveParticipant(p.id)}>
-                        <Ionicons name="close-circle" size={18} color="#ef4444" />
+                        <Ionicons name="close-circle" size={18} color="#8B1A1A" />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -514,10 +491,19 @@ export const ChatListScreen: React.FC = () => {
                   <>
                     <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
                     <Text style={styles.submitMeetingText}>
-                      Initialize 3-Way Room
+                      Initialize Negotiation Room
                     </Text>
                   </>
                 )}
+              </TouchableOpacity>
+
+              {/* Cancel */}
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setIsModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -530,39 +516,7 @@ export const ChatListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  brokerBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#065f46",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  brokerBannerTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#ffffff",
-  },
-  brokerBannerSub: {
-    fontSize: 11,
-    color: "#a7f3d0",
-    marginTop: 2,
-  },
-  newMeetingBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#059669",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 12,
-  },
-  newMeetingText: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 12,
-    marginLeft: 4,
+    backgroundColor: "#F8F7F4",
   },
   centerContainer: {
     flex: 1,
@@ -573,10 +527,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#64748b",
+    color: "#636B69",
   },
   listContent: {
-    padding: 12,
+    paddingTop: 8,
+    paddingBottom: 100,
   },
   emptyContainer: {
     flexGrow: 1,
@@ -587,137 +542,129 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
   },
-  emptyTitle: {
-    fontSize: 18,
+  emptyEyebrow: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#1e293b",
+    letterSpacing: 1.2,
+    color: "#636B69",
     marginBottom: 8,
   },
-  emptySubtitle: {
+  emptyBody: {
     fontSize: 13,
-    color: "#64748b",
+    color: "#A0A8A6",
     textAlign: "center",
-    lineHeight: 20,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: "#636B69",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   roomCard: {
-    flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
-    padding: 14,
+    marginHorizontal: 16,
     marginBottom: 10,
+    padding: 14,
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 6,
+    flexDirection: "row",
     alignItems: "center",
   },
-  avatarWrapper: {
-    position: "relative",
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
+  avatarDirect: {
+    backgroundColor: "#0B2B26",
+  },
+  avatarGroup: {
+    backgroundColor: "#92610A",
+  },
   avatarImage: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#e2e8f0",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
-  avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#1b5e20",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  groupBadgeDot: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    backgroundColor: "#0284c7",
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#ffffff",
+  avatarInitials: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   roomContent: {
     flex: 1,
-  },
-  roomHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
+    marginLeft: 0,
   },
   roomTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f172a",
-    flex: 1,
-    marginRight: 8,
+    color: "#181C1B",
   },
-  roomTime: {
-    fontSize: 11,
-    color: "#94a3b8",
-  },
-  participantsBadgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-    gap: 6,
-  },
-  typeTag: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  typeTagGroup: {
-    backgroundColor: "#e0f2fe",
-  },
-  typeTagDirect: {
-    backgroundColor: "#ecfdf5",
-  },
-  typeTagText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  typeTagTextGroup: {
-    color: "#0284c7",
-  },
-  typeTagTextDirect: {
-    color: "#059669",
-  },
-  roleTag: {
-    backgroundColor: "#f1f5f9",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  roleTagText: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#475569",
+  listingSubtitle: {
+    fontSize: 12,
+    color: "#636B69",
+    marginTop: 1,
   },
   lastMessageText: {
     fontSize: 13,
-    color: "#64748b",
+    color: "#A0A8A6",
+    numberOfLines: 1,
+    marginTop: 2,
+  } as any,
+  roomRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: 8,
   },
-  // Modal Styles
+  roomTime: {
+    fontSize: 11,
+    color: "#A0A8A6",
+  },
+  // FAB
+  fab: {
+    position: "absolute",
+    right: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#0B2B26",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#0B2B26",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  // Modal
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(11,43,38,0.6)",
+    justifyContent: "flex-end",
   },
   meetingModal: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    padding: 20,
-    maxHeight: "85%",
-    elevation: 8,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "88%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E6E2D8",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: "row",
@@ -728,30 +675,31 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0f172a",
+    color: "#181C1B",
   },
   modalSubtitle: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#636B69",
     marginBottom: 14,
     lineHeight: 18,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#334155",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.0,
+    color: "#636B69",
     marginBottom: 6,
     marginTop: 4,
   },
   modalInput: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F8F7F4",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
+    borderColor: "#E6E2D8",
+    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: "#0f172a",
+    color: "#181C1B",
     marginBottom: 10,
   },
   chipsRow: {
@@ -762,24 +710,26 @@ const styles = StyleSheet.create({
   demoChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F5EDD8",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
     gap: 4,
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
   },
   demoChipText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#334155",
+    color: "#92610A",
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F8F7F4",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
+    borderColor: "#E6E2D8",
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginBottom: 8,
@@ -787,12 +737,12 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: "#0f172a",
+    color: "#181C1B",
   },
   resultsContainer: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E6E2D8",
     borderRadius: 8,
     marginBottom: 12,
     maxHeight: 140,
@@ -802,16 +752,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#F8F7F4",
   },
   resultName: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#0f172a",
+    color: "#181C1B",
   },
   resultEmail: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#636B69",
+  },
+  roleTagSmall: {
+    backgroundColor: "#F5EDD8",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
+  },
+  roleTagText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#92610A",
   },
   selectedWrapper: {
     marginBottom: 12,
@@ -820,9 +783,9 @@ const styles = StyleSheet.create({
   selectedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ecfdf5",
+    backgroundColor: "#F5EDD8",
     borderWidth: 1,
-    borderColor: "#a7f3d0",
+    borderColor: "#E6E2D8",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -830,15 +793,15 @@ const styles = StyleSheet.create({
   selectedName: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#065f46",
+    color: "#181C1B",
   },
   selectedSub: {
     fontSize: 10,
-    color: "#047857",
+    color: "#92610A",
   },
   noParticipantsText: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: "#A0A8A6",
     fontStyle: "italic",
     marginBottom: 12,
   },
@@ -846,16 +809,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1b5e20",
-    paddingVertical: 13,
-    borderRadius: 12,
+    backgroundColor: "#0B2B26",
+    paddingVertical: 14,
+    borderRadius: 10,
     marginTop: 8,
-    marginBottom: 12,
+    marginBottom: 8,
+    gap: 8,
   },
   submitMeetingText: {
     color: "#ffffff",
     fontWeight: "700",
     fontSize: 14,
-    marginLeft: 6,
+  },
+  cancelBtn: {
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#636B69",
   },
 });

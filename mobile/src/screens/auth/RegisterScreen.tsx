@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../types/navigation";
 import { Role } from "../../types/auth";
@@ -18,10 +19,10 @@ import { useAuthStore } from "../../store/useAuthStore";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 
-const ROLES: Array<{ key: Role; label: string; desc: string }> = [
-  { key: "buyer", label: "Buyer", desc: "Browse plots & initiate calls/chats" },
-  { key: "seller", label: "Seller", desc: "Post & manage your own land listings" },
-  { key: "broker", label: "Broker", desc: "List plots & coordinate 3-way meetings" },
+const ROLES: Array<{ key: Role; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { key: "buyer", label: "Buyer", desc: "Browse plots & initiate calls/chats", icon: "person-outline" },
+  { key: "seller", label: "Seller", desc: "Post & manage your own land listings", icon: "home-outline" },
+  { key: "broker", label: "Broker", desc: "List plots & coordinate 3-way meetings", icon: "briefcase-outline" },
 ];
 
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
@@ -63,17 +64,23 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join LandConnect to buy, sell, or broker verified plots</Text>
-        </View>
+      {/* Header Crest Block */}
+      <View style={styles.crestHeader}>
+        <Text style={styles.brandTitle}>LANDCONNECT</Text>
+        <Text style={styles.brandSubtitle}>Create Your Account</Text>
+        <View style={styles.diamondSeparator} />
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.formCard}>
-          {error && <Text style={styles.errorBanner}>{error}</Text>}
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
 
           {/* Role Selection */}
-          <Text style={styles.sectionLabel}>Select Your Role</Text>
+          <Text style={styles.sectionLabel}>SELECT YOUR ROLE</Text>
           <View style={styles.roleContainer}>
             {ROLES.map((r) => {
               const isSelected = selectedRole === r.key;
@@ -83,21 +90,29 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   style={[styles.roleCard, isSelected && styles.roleCardActive]}
                   onPress={() => setSelectedRole(r.key)}
                 >
-                  <Text style={[styles.roleLabel, isSelected && styles.roleLabelActive]}>
-                    {r.label}
-                  </Text>
-                  <Text style={styles.roleDesc}>{r.desc}</Text>
+                  <Ionicons
+                    name={r.icon}
+                    size={20}
+                    color={isSelected ? "#C5A059" : "#636B69"}
+                    style={styles.roleIcon}
+                  />
+                  <View style={styles.roleTextColumn}>
+                    <Text style={[styles.roleLabel, isSelected && styles.roleLabelActive]}>
+                      {r.label}
+                    </Text>
+                    <Text style={styles.roleDesc}>{r.desc}</Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
           </View>
 
           {/* Input Fields */}
-          <Text style={styles.inputLabel}>Full Name *</Text>
+          <Text style={styles.inputLabel}>FULL NAME *</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. Rahul Sharma"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             value={name}
             onChangeText={(text) => {
               setName(text);
@@ -105,11 +120,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
           />
 
-          <Text style={styles.inputLabel}>Email Address *</Text>
+          <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. rahul@example.com"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -119,11 +134,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
           />
 
-          <Text style={styles.inputLabel}>Password (min 6 characters) *</Text>
+          <Text style={styles.inputLabel}>PASSWORD (MIN 6 CHARACTERS) *</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             secureTextEntry
             value={password}
             onChangeText={(text) => {
@@ -132,11 +147,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
           />
 
-          <Text style={styles.inputLabel}>Phone Number (Optional - Never Shared Publicly)</Text>
+          <Text style={styles.inputLabel}>PHONE NUMBER (OPTIONAL — NEVER SHARED PUBLICLY)</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. +91 9876543210"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             keyboardType="phone-pad"
             value={phone}
             onChangeText={setPhone}
@@ -148,9 +163,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#C5A059" />
             ) : (
-              <Text style={styles.primaryBtnText}>Register as {selectedRole.toUpperCase()}</Text>
+              <Text style={styles.primaryBtnText}>
+                REGISTER AS {selectedRole.toUpperCase()}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -169,48 +186,64 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
+    backgroundColor: "#F8F7F4",
+  },
+  crestHeader: {
+    backgroundColor: "#0B2B26",
+    paddingTop: 60,
+    paddingBottom: 36,
+    alignItems: "center",
+  },
+  brandTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 4,
+    color: "#C5A059",
+  },
+  brandSubtitle: {
+    fontSize: 12,
+    color: "rgba(197,160,89,0.7)",
+    marginTop: 4,
+    letterSpacing: 1.5,
+  },
+  diamondSeparator: {
+    width: 8,
+    height: 8,
+    backgroundColor: "#C5A059",
+    transform: [{ rotate: "45deg" }],
+    marginTop: 16,
   },
   scrollContent: {
-    padding: 24,
-  },
-  header: {
-    alignItems: "center",
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1b5e20",
-  },
-  subtitle: {
-    fontSize: 13,
-    color: "#555",
-    marginTop: 4,
-    textAlign: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   formCard: {
-    backgroundColor: "#fff",
-    padding: 20,
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
+    padding: 24,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   errorBanner: {
-    backgroundColor: "#ffebee",
-    color: "#c62828",
-    padding: 10,
+    backgroundColor: "#FEE2E2",
     borderRadius: 8,
+    padding: 10,
     marginBottom: 12,
+  },
+  errorBannerText: {
+    color: "#8B1A1A",
     fontSize: 13,
   },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#636B69",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 10,
   },
   roleContainer: {
@@ -218,74 +251,83 @@ const styles = StyleSheet.create({
   },
   roleCard: {
     borderWidth: 1.5,
-    borderColor: "#e0e0e0",
-    borderRadius: 10,
-    padding: 12,
+    borderColor: "#E6E2D8",
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 8,
-    backgroundColor: "#fafafa",
+    backgroundColor: "#F8F7F4",
+    flexDirection: "row",
+    alignItems: "center",
   },
   roleCardActive: {
-    borderColor: "#1b5e20",
-    backgroundColor: "#f0f7f0",
+    borderColor: "#C5A059",
+    backgroundColor: "#F5EDD8",
+  },
+  roleIcon: {
+    marginRight: 12,
+  },
+  roleTextColumn: {
+    flex: 1,
   },
   roleLabel: {
     fontSize: 15,
-    fontWeight: "bold",
-    color: "#444",
+    fontWeight: "700",
+    color: "#181C1B",
   },
   roleLabelActive: {
-    color: "#1b5e20",
+    color: "#0B2B26",
   },
   roleDesc: {
     fontSize: 12,
-    color: "#777",
+    color: "#636B69",
     marginTop: 2,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#333",
+    color: "#636B69",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 6,
-    marginTop: 10,
+    marginTop: 14,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    borderBottomWidth: 1.5,
+    borderColor: "#E6E2D8",
+    paddingVertical: 10,
     fontSize: 15,
-    color: "#222",
-    backgroundColor: "#fafbfc",
+    color: "#181C1B",
+    backgroundColor: "transparent",
   },
   primaryBtn: {
-    backgroundColor: "#1b5e20",
-    paddingVertical: 14,
+    backgroundColor: "#0B2B26",
     borderRadius: 10,
+    paddingVertical: 15,
+    marginTop: 24,
     alignItems: "center",
-    marginTop: 20,
   },
   btnDisabled: {
     opacity: 0.7,
   },
   primaryBtnText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "bold",
+    fontWeight: "700",
+    letterSpacing: 0.6,
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 24,
+    marginBottom: 20,
   },
   footerText: {
-    color: "#666",
+    color: "#636B69",
     fontSize: 14,
   },
   footerLink: {
-    color: "#1b5e20",
-    fontWeight: "bold",
+    color: "#C5A059",
+    fontWeight: "700",
     fontSize: 14,
   },
 });

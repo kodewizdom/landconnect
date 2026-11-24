@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing, ListingStatus } from "../../types/listing";
+import { Colors, formatINR } from "../../theme";
 
 export const MyListingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -28,15 +29,15 @@ export const MyListingsScreen: React.FC = () => {
   const handleUpdateStatus = (listing: Listing) => {
     Alert.alert("Update Listing Status", "Change property visibility:", [
       {
-        text: "🟢 Available",
+        text: "Available",
         onPress: () => updateStatus(listing.id, "available"),
       },
       {
-        text: "🟡 Under Negotiation",
+        text: "Under Negotiation",
         onPress: () => updateStatus(listing.id, "negotiation"),
       },
       {
-        text: "🔴 Sold",
+        text: "Sold",
         onPress: () => updateStatus(listing.id, "sold"),
       },
       { text: "Cancel", style: "cancel" },
@@ -60,56 +61,74 @@ export const MyListingsScreen: React.FC = () => {
     ]);
   };
 
+  const getStatusStyle = (status: ListingStatus) => {
+    if (status === "available") {
+      return { bg: Colors.success, text: Colors.ivory };
+    }
+    if (status === "negotiation") {
+      return { bg: Colors.warning, text: Colors.ivory };
+    }
+    return { bg: Colors.error, text: Colors.ivory };
+  };
+
+  const getStatusLabel = (status: ListingStatus) => {
+    if (status === "available") return "AVAILABLE";
+    if (status === "negotiation") return "NEGOTIATION";
+    return "SOLD";
+  };
+
   const renderItem = ({ item }: { item: Listing }) => {
     const coverUrl =
       item.images?.[0]?.image_url ||
       "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=400&q=80";
+
+    const statusStyle = getStatusStyle(item.status);
 
     return (
       <View style={styles.card}>
         <Image source={{ uri: coverUrl }} style={styles.cardThumb} />
 
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.cardPrice}>₹{item.price.toLocaleString("en-IN")}</Text>
-          <Text style={styles.cardMeta}>
-            {item.area_size} {item.area_unit.toUpperCase()} • {item.address_text}
+          <View style={styles.cardTopRow}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <TouchableOpacity
+              style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}
+              onPress={() => handleUpdateStatus(item)}
+            >
+              <Text style={[styles.statusPillText, { color: statusStyle.text }]}>
+                {getStatusLabel(item.status)}
+              </Text>
+              <Ionicons name="chevron-down" size={10} color={statusStyle.text} style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.cardPrice}>{formatINR(item.price)}</Text>
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {item.area_size} {item.area_unit.toUpperCase()} · {item.address_text}
           </Text>
 
           <View style={styles.actionRow}>
-            {/* Status button */}
-            <TouchableOpacity
-              style={[
-                styles.statusBtn,
-                item.status === "available"
-                  ? styles.statusAvailable
-                  : item.status === "negotiation"
-                  ? styles.statusNegotiation
-                  : styles.statusSold,
-              ]}
-              onPress={() => handleUpdateStatus(item)}
-            >
-              <Text style={styles.statusBtnText}>
-                {item.status.toUpperCase()} ▾
-              </Text>
-            </TouchableOpacity>
-
             {/* View Detail */}
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => navigation.navigate("ListingDetail", { listingId: item.id })}
             >
-              <Ionicons name="eye-outline" size={18} color="#1b5e20" />
+              <Ionicons name="eye-outline" size={18} color={Colors.emerald} />
             </TouchableOpacity>
 
-            {/* Delete button */}
+            {/* Edit placeholder */}
+            <TouchableOpacity style={styles.iconBtn}>
+              <Ionicons name="create-outline" size={18} color={Colors.emerald} />
+            </TouchableOpacity>
+
+            {/* Delete */}
             <TouchableOpacity
-              style={[styles.iconBtn, { borderColor: "#fee2e2" }]}
+              style={[styles.iconBtn, { borderColor: Colors.errorBg }]}
               onPress={() => handleDeleteListing(item.id, item.title)}
             >
-              <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              <Ionicons name="trash-outline" size={18} color={Colors.error} />
             </TouchableOpacity>
           </View>
         </View>
@@ -119,10 +138,10 @@ export const MyListingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Banner with Post Land shortcut */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>My Managed Listings</Text>
+          <Text style={styles.headerTitle}>My Listings</Text>
           <Text style={styles.headerSubtitle}>
             {myListings.length} {myListings.length === 1 ? "plot" : "plots"} published
           </Text>
@@ -132,13 +151,13 @@ export const MyListingsScreen: React.FC = () => {
           style={styles.postBtn}
           onPress={() => navigation.navigate("CreateListing")}
         >
-          <Ionicons name="add" size={18} color="#fff" />
+          <Ionicons name="add" size={18} color={Colors.ivory} />
           <Text style={styles.postBtnText}>Post Land</Text>
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color="#1b5e20" style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={Colors.emerald} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={myListings}
@@ -149,10 +168,10 @@ export const MyListingsScreen: React.FC = () => {
           refreshing={isLoading}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyTitle}>No listings posted yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Tap "+ Post Land" above to create your first property listing.
+              <Ionicons name="home-outline" size={56} color={Colors.sand} />
+              <Text style={styles.emptyEyebrow}>NO LISTINGS YET</Text>
+              <Text style={styles.emptyBody}>
+                Tap "Post Land" above to create your first property listing.
               </Text>
             </View>
           }
@@ -165,51 +184,53 @@ export const MyListingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
+    backgroundColor: Colors.alabaster,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
-    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: Colors.ivory,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: Colors.sand,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1b5e20",
+    fontWeight: "700",
+    color: Colors.charcoal,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: "#666",
+    color: Colors.slate,
     marginTop: 2,
   },
   postBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1b5e20",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: Colors.emerald,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 8,
+    gap: 5,
   },
   postBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: Colors.ivory,
+    fontWeight: "700",
     fontSize: 13,
-    marginLeft: 4,
   },
   listContent: {
     padding: 16,
   },
   card: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: Colors.ivory,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
     shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
@@ -217,75 +238,75 @@ const styles = StyleSheet.create({
   cardThumb: {
     width: 85,
     height: 85,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   cardContent: {
     flex: 1,
     marginLeft: 12,
   },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
   cardTitle: {
     fontSize: 14,
-    fontWeight: "bold",
-    color: "#222",
+    fontWeight: "700",
+    color: Colors.charcoal,
+    flex: 1,
+    marginRight: 8,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusPillText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   cardPrice: {
     fontSize: 15,
-    fontWeight: "bold",
-    color: "#1b5e20",
-    marginTop: 2,
+    fontWeight: "700",
+    color: Colors.gold,
+    marginTop: 4,
   },
   cardMeta: {
     fontSize: 12,
-    color: "#666",
-    marginTop: 2,
+    color: Colors.slate,
+    marginTop: 3,
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
-  },
-  statusBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  statusAvailable: {
-    backgroundColor: "#e8f5e9",
-  },
-  statusNegotiation: {
-    backgroundColor: "#fff3e0",
-  },
-  statusSold: {
-    backgroundColor: "#fee2e2",
-  },
-  statusBtnText: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: "#333",
+    marginTop: 10,
+    gap: 8,
   },
   iconBtn: {
-    padding: 6,
+    padding: 7,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 6,
-    marginRight: 6,
+    borderColor: Colors.sand,
+    borderRadius: 7,
   },
   emptyContainer: {
     alignItems: "center",
     marginTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 10,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: "#777",
-    textAlign: "center",
-    marginTop: 4,
     paddingHorizontal: 30,
+  },
+  emptyEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.slate,
+    letterSpacing: 1.2,
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  emptyBody: {
+    fontSize: 13,
+    color: Colors.muted,
+    textAlign: "center",
   },
 });

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
@@ -18,6 +19,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing, AreaUnit, ListingStatus } from "../../types/listing";
+import { Colors, formatINR, Shadows, Radii } from "../../theme";
 
 const { width } = Dimensions.get("window");
 
@@ -72,39 +74,22 @@ export const CommunityScreen: React.FC = () => {
     setIsFilterModalVisible(false);
   };
 
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) {
-      return `₹${(price / 10000000).toFixed(2)} Cr`;
-    }
-    if (price >= 100000) {
-      return `₹${(price / 100000).toFixed(2)} Lakh`;
-    }
-    return `₹${price.toLocaleString("en-IN")}`;
-  };
-
-  const renderStatusBadge = (status: ListingStatus) => {
+  const renderStatusPill = (status: ListingStatus) => {
     const bg =
       status === "available"
-        ? "#e8f5e9"
+        ? Colors.success
         : status === "negotiation"
-        ? "#fff3e0"
-        : "#ffebee";
-    const color =
-      status === "available"
-        ? "#2e7d32"
-        : status === "negotiation"
-        ? "#e65100"
-        : "#c62828";
+        ? Colors.warning
+        : Colors.error;
     const label =
       status === "available"
-        ? "Available"
+        ? "AVAILABLE"
         : status === "negotiation"
-        ? "In Negotiation"
-        : "Sold";
-
+        ? "NEGOTIATION"
+        : "SOLD";
     return (
-      <View style={[styles.statusBadge, { backgroundColor: bg }]}>
-        <Text style={[styles.statusBadgeText, { color }]}>{label}</Text>
+      <View style={[styles.statusPill, { backgroundColor: bg }]}>
+        <Text style={styles.statusPillText}>{label}</Text>
       </View>
     );
   };
@@ -123,9 +108,11 @@ export const CommunityScreen: React.FC = () => {
       >
         <View style={styles.cardImageContainer}>
           <Image source={{ uri: coverImage }} style={styles.cardImage} />
-          <View style={styles.badgeTopLeft}>{renderStatusBadge(item.status)}</View>
+          {/* Status pill top-left */}
+          <View style={styles.badgeTopLeft}>{renderStatusPill(item.status)}</View>
+          {/* Price tag bottom-right */}
           <View style={styles.priceTag}>
-            <Text style={styles.priceTagText}>{formatPrice(item.price)}</Text>
+            <Text style={styles.priceTagText}>{formatINR(item.price)}</Text>
           </View>
         </View>
 
@@ -136,24 +123,24 @@ export const CommunityScreen: React.FC = () => {
 
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="expand-outline" size={15} color="#1b5e20" />
+              <Ionicons name="expand-outline" size={15} color={Colors.gold} />
               <Text style={styles.metaText}>
                 {item.area_size} {item.area_unit.toUpperCase()}
               </Text>
             </View>
 
             <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={15} color="#666" />
+              <Ionicons name="location-outline" size={15} color={Colors.slate} />
               <Text style={styles.metaLocationText} numberOfLines={1}>
                 {item.address_text}
               </Text>
             </View>
           </View>
 
-          {/* Owner info */}
+          {/* Footer */}
           <View style={styles.cardFooter}>
             <View style={styles.ownerInfo}>
-              <Ionicons name="person-circle-outline" size={20} color="#1b5e20" />
+              <Ionicons name="person-circle-outline" size={18} color={Colors.slate} />
               <Text style={styles.ownerName}>
                 {item.owner?.full_name || "Verified Member"}
               </Text>
@@ -164,7 +151,17 @@ export const CommunityScreen: React.FC = () => {
               </View>
             </View>
 
-            <Ionicons name="chevron-forward" size={18} color="#999" />
+            <View style={styles.timeRow}>
+              <Ionicons name="time-outline" size={12} color={Colors.muted} />
+              <Text style={styles.timeText}>
+                {item.created_at
+                  ? new Date(item.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "Recent"}
+              </Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -179,82 +176,87 @@ export const CommunityScreen: React.FC = () => {
     longitudeDelta: 0.25,
   };
 
+  const hasActiveFilters = Object.keys(filters).length > 0;
+
   return (
     <View style={styles.container}>
-      {/* Search & Filter Header */}
-      <View style={styles.searchHeader}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color="#666" style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by location, keyword..."
-            placeholderTextColor="#888"
-            value={searchText}
-            onChangeText={setSearchText}
-            onSubmitEditing={handleSearchSubmit}
-            returnKeyType="search"
-          />
-          {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText("")}>
-              <Ionicons name="close-circle" size={18} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={styles.filterBtn}
-          onPress={() => setIsFilterModalVisible(true)}
-        >
-          <Ionicons
-            name="options-outline"
-            size={20}
-            color={Object.keys(filters).length > 0 ? "#1b5e20" : "#333"}
-          />
-        </TouchableOpacity>
+      {/* Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={16} color={Colors.slate} style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by location, keyword..."
+          placeholderTextColor={Colors.muted}
+          value={searchText}
+          onChangeText={setSearchText}
+          onSubmitEditing={handleSearchSubmit}
+          returnKeyType="search"
+        />
+        {searchText.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchText("")}>
+            <Ionicons name="close-circle-outline" size={18} color={Colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Segmented View Switcher */}
-      <View style={styles.segmentedContainer}>
+      {/* View mode toggle + filter row */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.toggleRow}
+        contentContainerStyle={styles.toggleRowContent}
+      >
         <TouchableOpacity
-          style={[styles.segmentedBtn, viewMode === "list" && styles.segmentedBtnActive]}
+          style={[styles.togglePill, viewMode === "list" && styles.togglePillActive]}
           onPress={() => setViewMode("list")}
         >
           <Ionicons
             name="list-outline"
-            size={16}
-            color={viewMode === "list" ? "#fff" : "#555"}
-            style={{ marginRight: 6 }}
+            size={14}
+            color={viewMode === "list" ? Colors.ivory : Colors.slate}
+            style={{ marginRight: 5 }}
           />
           <Text
             style={[
-              styles.segmentedText,
-              viewMode === "list" && styles.segmentedTextActive,
+              styles.togglePillText,
+              viewMode === "list" && styles.togglePillTextActive,
             ]}
           >
-            Listings Feed
+            List
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.segmentedBtn, viewMode === "map" && styles.segmentedBtnActive]}
+          style={[styles.togglePill, viewMode === "map" && styles.togglePillActive]}
           onPress={() => setViewMode("map")}
         >
           <Ionicons
             name="map-outline"
-            size={16}
-            color={viewMode === "map" ? "#fff" : "#555"}
-            style={{ marginRight: 6 }}
+            size={14}
+            color={viewMode === "map" ? Colors.ivory : Colors.slate}
+            style={{ marginRight: 5 }}
           />
           <Text
             style={[
-              styles.segmentedText,
-              viewMode === "map" && styles.segmentedTextActive,
+              styles.togglePillText,
+              viewMode === "map" && styles.togglePillTextActive,
             ]}
           >
-            Map Pins
+            Map
           </Text>
         </TouchableOpacity>
-      </View>
+
+        <TouchableOpacity
+          style={[styles.filterBtn, hasActiveFilters && { borderColor: Colors.gold }]}
+          onPress={() => setIsFilterModalVisible(true)}
+        >
+          <Ionicons
+            name="options-outline"
+            size={18}
+            color={hasActiveFilters ? Colors.gold : Colors.slate}
+          />
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Main View: List or Map */}
       {viewMode === "list" ? (
@@ -270,10 +272,10 @@ export const CommunityScreen: React.FC = () => {
           ListEmptyComponent={
             !isLoading ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="leaf-outline" size={54} color="#a5d6a7" />
-                <Text style={styles.emptyTitle}>No land listings found</Text>
-                <Text style={styles.emptySubtitle}>
-                  Try clearing your search keyword or adjust the price & area filters.
+                <Ionicons name="business-outline" size={56} color={Colors.sand} />
+                <Text style={styles.emptyEyebrow}>NO LISTINGS FOUND</Text>
+                <Text style={styles.emptyBody}>
+                  Try adjusting your search or filters
                 </Text>
               </View>
             ) : undefined
@@ -282,7 +284,7 @@ export const CommunityScreen: React.FC = () => {
             isLoading ? (
               <ActivityIndicator
                 size="small"
-                color="#1b5e20"
+                color={Colors.emerald}
                 style={{ marginVertical: 20 }}
               />
             ) : undefined
@@ -297,7 +299,6 @@ export const CommunityScreen: React.FC = () => {
             showsUserLocation
             showsMyLocationButton
           >
-
             {listings.map((item) => (
               <Marker
                 key={item.id}
@@ -305,7 +306,7 @@ export const CommunityScreen: React.FC = () => {
                 onPress={() => setSelectedMapListing(item)}
               >
                 <View style={styles.mapPin}>
-                  <Text style={styles.mapPinText}>{formatPrice(item.price)}</Text>
+                  <Text style={styles.mapPinText}>{formatINR(item.price)}</Text>
                 </View>
               </Marker>
             ))}
@@ -332,26 +333,26 @@ export const CommunityScreen: React.FC = () => {
                   style={styles.bottomCardThumb}
                 />
                 <View style={styles.bottomCardInfo}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.bottomCardPrice}>
-                      {formatPrice(selectedMapListing.price)}
-                    </Text>
-                    {renderStatusBadge(selectedMapListing.status)}
-                  </View>
+                  <Text style={styles.bottomCardPrice}>
+                    {formatINR(selectedMapListing.price)}
+                  </Text>
                   <Text style={styles.bottomCardTitle} numberOfLines={1}>
                     {selectedMapListing.title}
                   </Text>
-                  <Text style={styles.bottomCardLocation} numberOfLines={1}>
+                  <Text style={styles.bottomCardMeta} numberOfLines={1}>
                     {selectedMapListing.area_size} {selectedMapListing.area_unit} •{" "}
                     {selectedMapListing.address_text}
                   </Text>
+                </View>
+                <View style={styles.bottomCardCTA}>
+                  <Ionicons name="arrow-forward-circle" size={28} color={Colors.gold} />
                 </View>
 
                 <TouchableOpacity
                   style={styles.closePreviewBtn}
                   onPress={() => setSelectedMapListing(null)}
                 >
-                  <Ionicons name="close" size={16} color="#666" />
+                  <Ionicons name="close" size={16} color={Colors.slate} />
                 </TouchableOpacity>
               </TouchableOpacity>
             </View>
@@ -368,26 +369,32 @@ export const CommunityScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            {/* Handle */}
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filter Listings</Text>
+              <Text style={styles.modalEyebrow}>REFINE SEARCH</Text>
               <TouchableOpacity onPress={() => setIsFilterModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#333" />
+                <Ionicons name="close" size={22} color={Colors.charcoal} />
               </TouchableOpacity>
             </View>
+            <Text style={styles.modalTitle}>Filter Listings</Text>
 
             {/* Price Range */}
-            <Text style={styles.filterSectionTitle}>Price Range (₹)</Text>
+            <Text style={styles.filterSectionLabel}>PRICE RANGE (₹)</Text>
             <View style={styles.rowInputs}>
               <TextInput
-                style={[styles.input, { flex: 1, marginRight: 8 }]}
-                placeholder="Min Price (₹)"
+                style={[styles.filterInput, { flex: 1, marginRight: 8 }]}
+                placeholder="Min Price"
+                placeholderTextColor={Colors.muted}
                 keyboardType="numeric"
                 value={filterMinPrice}
                 onChangeText={setFilterMinPrice}
               />
               <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Max Price (₹)"
+                style={[styles.filterInput, { flex: 1 }]}
+                placeholder="Max Price"
+                placeholderTextColor={Colors.muted}
                 keyboardType="numeric"
                 value={filterMaxPrice}
                 onChangeText={setFilterMaxPrice}
@@ -395,18 +402,13 @@ export const CommunityScreen: React.FC = () => {
             </View>
 
             {/* Area Unit */}
-            <Text style={styles.filterSectionTitle}>Area Unit</Text>
+            <Text style={styles.filterSectionLabel}>AREA UNIT</Text>
             <View style={styles.chipGroup}>
               {(["acre", "sqft", "gunta", "ha"] as AreaUnit[]).map((unit) => (
                 <TouchableOpacity
                   key={unit}
-                  style={[
-                    styles.chip,
-                    filterUnit === unit && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    setFilterUnit(filterUnit === unit ? undefined : unit)
-                  }
+                  style={[styles.chip, filterUnit === unit && styles.chipActive]}
+                  onPress={() => setFilterUnit(filterUnit === unit ? undefined : unit)}
                 >
                   <Text
                     style={[
@@ -421,18 +423,13 @@ export const CommunityScreen: React.FC = () => {
             </View>
 
             {/* Status */}
-            <Text style={styles.filterSectionTitle}>Availability Status</Text>
+            <Text style={styles.filterSectionLabel}>AVAILABILITY</Text>
             <View style={styles.chipGroup}>
               {(["available", "negotiation", "sold"] as ListingStatus[]).map((st) => (
                 <TouchableOpacity
                   key={st}
-                  style={[
-                    styles.chip,
-                    filterStatus === st && styles.chipActive,
-                  ]}
-                  onPress={() =>
-                    setFilterStatus(filterStatus === st ? undefined : st)
-                  }
+                  style={[styles.chip, filterStatus === st && styles.chipActive]}
+                  onPress={() => setFilterStatus(filterStatus === st ? undefined : st)}
                 >
                   <Text
                     style={[
@@ -440,7 +437,11 @@ export const CommunityScreen: React.FC = () => {
                       filterStatus === st && styles.chipTextActive,
                     ]}
                   >
-                    {st.charAt(0).toUpperCase() + st.slice(1)}
+                    {st === "available"
+                      ? "AVAILABLE"
+                      : st === "negotiation"
+                      ? "NEGOTIATION"
+                      : "SOLD"}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -448,17 +449,11 @@ export const CommunityScreen: React.FC = () => {
 
             {/* Action buttons */}
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.resetBtn}
-                onPress={handleResetFilters}
-              >
+              <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters}>
                 <Text style={styles.resetBtnText}>Reset</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={handleApplyFilters}
-              >
+              <TouchableOpacity style={styles.applyBtn} onPress={handleApplyFilters}>
                 <Text style={styles.applyBtnText}>Apply Filters</Text>
               </TouchableOpacity>
             </View>
@@ -472,114 +467,119 @@ export const CommunityScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
-  },
-  searchHeader: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-    alignItems: "center",
+    backgroundColor: Colors.alabaster,
   },
   searchBar: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f3f4f6",
+    backgroundColor: Colors.ivory,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.sand,
     paddingHorizontal: 12,
-    height: 40,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    height: 42,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#222",
+    color: Colors.charcoal,
   },
-  filterBtn: {
-    marginLeft: 10,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: "#f3f4f6",
+  toggleRow: {
+    paddingBottom: 8,
   },
-  segmentedContainer: {
-    flexDirection: "row",
+  toggleRowContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  segmentedBtn: {
-    flex: 1,
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#f3f4f6",
-    marginHorizontal: 4,
+    gap: 8,
   },
-  segmentedBtnActive: {
-    backgroundColor: "#1b5e20",
+  togglePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.alabaster,
+    borderWidth: 1,
+    borderColor: Colors.sand,
   },
-  segmentedText: {
+  togglePillActive: {
+    backgroundColor: Colors.emerald,
+    borderColor: Colors.emerald,
+  },
+  togglePillText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#555",
+    color: Colors.slate,
   },
-  segmentedTextActive: {
-    color: "#fff",
+  togglePillTextActive: {
+    color: Colors.ivory,
+  },
+  filterBtn: {
+    borderWidth: 1,
+    borderColor: Colors.sand,
+    borderRadius: 8,
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   listContent: {
-    padding: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    marginBottom: 16,
+    borderRadius: 16,
+    backgroundColor: Colors.ivory,
+    marginHorizontal: 16,
+    marginBottom: 14,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
     elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
   },
   cardImageContainer: {
-    height: 180,
+    height: 200,
     width: "100%",
     position: "relative",
   },
   cardImage: {
     width: "100%",
     height: "100%",
+    resizeMode: "cover",
   },
   badgeTopLeft: {
     position: "absolute",
     top: 10,
     left: 10,
   },
-  statusBadge: {
+  statusPill: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "bold",
+  statusPillText: {
+    color: Colors.ivory,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.8,
   },
   priceTag: {
     position: "absolute",
     bottom: 10,
-    left: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    right: 10,
+    backgroundColor: "rgba(11,43,38,0.88)",
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
   },
   priceTagText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: Colors.gold,
+    fontWeight: "700",
     fontSize: 15,
   },
   cardBody: {
@@ -587,29 +587,30 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#222",
+    fontWeight: "700",
+    color: Colors.charcoal,
     marginBottom: 6,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
   },
   metaText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1b5e20",
+    color: Colors.charcoal,
     marginLeft: 4,
   },
   metaLocationText: {
     fontSize: 13,
-    color: "#666",
+    color: Colors.slate,
     marginLeft: 4,
     maxWidth: 160,
   },
@@ -618,21 +619,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: Colors.sand,
     paddingTop: 10,
   },
   ownerInfo: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
   ownerName: {
     fontSize: 13,
-    color: "#444",
+    color: Colors.charcoal,
     marginLeft: 6,
     fontWeight: "500",
   },
   roleChip: {
-    backgroundColor: "#e8f5e9",
+    backgroundColor: Colors.goldLight,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.gold,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -640,25 +644,35 @@ const styles = StyleSheet.create({
   },
   roleChipText: {
     fontSize: 9,
-    color: "#1b5e20",
-    fontWeight: "bold",
+    color: Colors.warning,
+    fontWeight: "700",
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  timeText: {
+    fontSize: 11,
+    color: Colors.muted,
   },
   emptyContainer: {
     alignItems: "center",
     marginTop: 60,
     paddingHorizontal: 30,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
+  emptyEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.slate,
+    letterSpacing: 1.2,
     marginTop: 12,
+    marginBottom: 6,
   },
-  emptySubtitle: {
+  emptyBody: {
     fontSize: 13,
-    color: "#777",
+    color: Colors.muted,
     textAlign: "center",
-    marginTop: 6,
   },
   mapContainer: {
     flex: 1,
@@ -668,21 +682,21 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   mapPin: {
-    backgroundColor: "#1b5e20",
+    backgroundColor: Colors.emerald,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    borderColor: "#fff",
-    borderWidth: 2,
+    borderColor: Colors.gold,
+    borderWidth: 1.5,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
   },
   mapPinText: {
-    color: "#fff",
+    color: Colors.ivory,
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
   bottomCardWrapper: {
     position: "absolute",
@@ -692,44 +706,42 @@ const styles = StyleSheet.create({
   },
   bottomCard: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 10,
+    backgroundColor: Colors.ivory,
+    borderRadius: 16,
+    padding: 14,
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
     alignItems: "center",
   },
   bottomCardThumb: {
-    width: 75,
-    height: 75,
+    width: 64,
+    height: 64,
     borderRadius: 10,
   },
   bottomCardInfo: {
     flex: 1,
     marginLeft: 12,
   },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   bottomCardPrice: {
     fontSize: 15,
-    fontWeight: "bold",
-    color: "#1b5e20",
+    fontWeight: "700",
+    color: Colors.gold,
   },
   bottomCardTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#222",
+    color: Colors.charcoal,
     marginTop: 2,
   },
-  bottomCardLocation: {
+  bottomCardMeta: {
     fontSize: 12,
-    color: "#666",
+    color: Colors.slate,
     marginTop: 2,
+  },
+  bottomCardCTA: {
+    marginLeft: 8,
   },
   closePreviewBtn: {
     position: "absolute",
@@ -739,102 +751,118 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: Colors.overlayLight,
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.ivory,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
+    paddingBottom: 32,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.sand,
+    alignSelf: "center",
+    marginBottom: 16,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  modalEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.slate,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#222",
+    fontSize: 20,
+    fontWeight: "700",
+    color: Colors.charcoal,
+    marginBottom: 16,
   },
-  filterSectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#444",
-    marginTop: 12,
-    marginBottom: 8,
+  filterSectionLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.slate,
+    marginTop: 16,
+    marginBottom: 10,
   },
   rowInputs: {
     flexDirection: "row",
   },
-  input: {
+  filterInput: {
     borderWidth: 1,
-    borderColor: "#d0d7de",
+    borderColor: Colors.sand,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     fontSize: 14,
-    backgroundColor: "#fafbfc",
+    color: Colors.charcoal,
+    backgroundColor: Colors.alabaster,
   },
   chipGroup: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 8,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 16,
-    backgroundColor: "#f3f4f6",
-    marginRight: 8,
-    marginBottom: 8,
+    backgroundColor: Colors.alabaster,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: Colors.sand,
   },
   chipActive: {
-    backgroundColor: "#e8f5e9",
-    borderColor: "#1b5e20",
+    backgroundColor: Colors.goldLight,
+    borderColor: Colors.gold,
   },
   chipText: {
     fontSize: 12,
-    color: "#555",
-    fontWeight: "500",
+    color: Colors.slate,
+    fontWeight: "600",
   },
   chipTextActive: {
-    color: "#1b5e20",
-    fontWeight: "bold",
+    color: Colors.warning,
+    fontWeight: "700",
   },
   modalActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 24,
-    marginBottom: 10,
   },
   resetBtn: {
     flex: 1,
     marginRight: 8,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: Colors.sand,
     alignItems: "center",
   },
   resetBtnText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#555",
+    color: Colors.slate,
   },
   applyBtn: {
     flex: 2,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 8,
-    backgroundColor: "#1b5e20",
+    backgroundColor: Colors.emerald,
     alignItems: "center",
   },
   applyBtnText: {
     fontSize: 14,
-    fontWeight: "bold",
-    color: "#fff",
+    fontWeight: "700",
+    color: Colors.ivory,
   },
 });

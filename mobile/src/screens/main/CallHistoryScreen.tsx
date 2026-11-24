@@ -17,7 +17,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { callApi } from "../../api/call.api";
 import { useSocket } from "../../context/SocketContext";
 import { CallLog } from "../../types/chat";
-import { formatCallDate } from "../../utils/dateFormat";
+import { formatCallDate, formatTime12Hour } from "../../utils/dateFormat";
 
 export const CallHistoryScreen: React.FC = () => {
   const navigation =
@@ -126,81 +126,68 @@ export const CallHistoryScreen: React.FC = () => {
     const isOutgoing = item.caller_id === currentUser?.id;
     const counterpart = isOutgoing ? item.receiver : item.caller;
     const isConnected = item.status === "connected" || item.status === "ended";
+    const isMissed = !isConnected;
     const duration = formatDuration(item.duration_seconds);
+    const isVideo = item.call_type === "video";
+
+    // Icon circle background & icon color
+    let iconBg = "#F5EDD8";
+    let iconColor = "#C5A059";
+    if (isMissed) {
+      iconBg = "#FEE2E2";
+      iconColor = "#8B1A1A";
+    } else if (isOutgoing) {
+      iconBg = "#E8F5EE";
+      iconColor = "#1A6B45";
+    }
 
     return (
       <View style={styles.callCard} key={item.id || `call-item-${index}`}>
-        <View style={styles.callIconWrapper}>
-          <View
-            style={[
-              styles.callIconBg,
-              isConnected
-                ? isOutgoing
-                  ? styles.bgOutgoing
-                  : styles.bgIncoming
-                : styles.bgMissed,
-            ]}
-          >
-            <Ionicons
-              name={
-                item.call_type === "video"
-                  ? "videocam"
-                  : isOutgoing
-                  ? "arrow-up"
-                  : "arrow-down"
-              }
-              size={18}
-              color={
-                isConnected
-                  ? isOutgoing
-                    ? "#16a34a"
-                    : "#0284c7"
-                  : "#ef4444"
-              }
-            />
-          </View>
+        {/* Left icon circle */}
+        <View style={[styles.callIconBg, { backgroundColor: iconBg }]}>
+          <Ionicons
+            name={isVideo ? "videocam-outline" : "call-outline"}
+            size={18}
+            color={iconColor}
+          />
         </View>
 
+        {/* Center info */}
         <View style={styles.callInfo}>
-          <View style={styles.callHeaderRow}>
-            <Text style={styles.counterpartName} numberOfLines={1}>
-              {counterpart?.full_name || "LandConnect User"}
-            </Text>
-            <Text style={styles.callDate}>{formatCallDate(item.started_at)}</Text>
-          </View>
-
+          <Text style={styles.counterpartName} numberOfLines={1}>
+            {counterpart?.full_name || "LandConnect User"}
+          </Text>
           <View style={styles.detailsRow}>
-            <View style={styles.roleTag}>
+            <View style={styles.roleTagSmall}>
               <Text style={styles.roleTagText}>
                 {counterpart?.role?.toUpperCase() || "USER"}
               </Text>
             </View>
-
-            <Text style={styles.callStatusText}>
-              {isConnected
-                ? duration
-                  ? `${item.call_type === "video" ? "Video" : "Audio"} • ${duration}`
-                  : `${item.call_type === "video" ? "Video" : "Audio"} Call`
-                : item.status === "rejected"
-                ? "Declined"
-                : "Missed"}
+            <Text style={styles.callTimestamp}>
+              {formatCallDate(item.started_at)}
             </Text>
           </View>
         </View>
 
-        {item.room_id && (
-          <TouchableOpacity
-            style={styles.callBackBtn}
-            onPress={() => handleCallBack(item)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={item.call_type === "video" ? "videocam" : "call"}
-              size={18}
-              color="#1b5e20"
-            />
-          </TouchableOpacity>
-        )}
+        {/* Right: duration + callback */}
+        <View style={styles.callRight}>
+          {duration && (
+            <Text style={styles.durationText}>{duration}</Text>
+          )}
+          {item.room_id && (
+            <TouchableOpacity
+              style={styles.callBackBtn}
+              onPress={() => handleCallBack(item)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="call-outline"
+                size={16}
+                color="#636B69"
+              />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
@@ -211,7 +198,7 @@ export const CallHistoryScreen: React.FC = () => {
     <View style={styles.container}>
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#1b5e20" />
+          <ActivityIndicator size="large" color="#0B2B26" />
           <Text style={styles.loadingText}>Loading call history...</Text>
         </View>
       ) : (
@@ -226,7 +213,8 @@ export const CallHistoryScreen: React.FC = () => {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={onRefresh}
-              colors={["#1b5e20"]}
+              colors={["#0B2B26"]}
+              tintColor="#0B2B26"
             />
           }
           onEndReached={handleLoadMore}
@@ -235,14 +223,13 @@ export const CallHistoryScreen: React.FC = () => {
             <View style={styles.emptyState}>
               <Ionicons
                 name="call-outline"
-                size={64}
-                color="#94a3b8"
+                size={56}
+                color="#E6E2D8"
                 style={{ marginBottom: 16 }}
               />
-              <Text style={styles.emptyTitle}>No Call Logs Yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Conduct private, zero-PII audio and video calls directly from any
-                negotiation room.
+              <Text style={styles.emptyEyebrow}>NO CALL HISTORY</Text>
+              <Text style={styles.emptyBody}>
+                Conduct private, zero-PII audio and video calls directly from any negotiation room.
               </Text>
             </View>
           }
@@ -255,7 +242,7 @@ export const CallHistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F8F7F4",
   },
   centerContainer: {
     flex: 1,
@@ -266,10 +253,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#64748b",
+    color: "#636B69",
   },
   listContent: {
-    padding: 12,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   emptyContainer: {
     flexGrow: 1,
@@ -280,24 +268,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
   },
-  emptyTitle: {
-    fontSize: 18,
+  emptyEyebrow: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#1e293b",
+    letterSpacing: 1.2,
+    color: "#636B69",
     marginBottom: 8,
   },
-  emptySubtitle: {
+  emptyBody: {
     fontSize: 13,
-    color: "#64748b",
+    color: "#A0A8A6",
     textAlign: "center",
     lineHeight: 20,
   },
   callCard: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginHorizontal: 16,
     marginBottom: 8,
+    padding: 14,
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -305,72 +295,57 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     alignItems: "center",
   },
-  callIconWrapper: {
-    marginRight: 12,
-  },
   callIconBg: {
     width: 44,
     height: 44,
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-  },
-  bgOutgoing: {
-    backgroundColor: "#dcfce7",
-  },
-  bgIncoming: {
-    backgroundColor: "#e0f2fe",
-  },
-  bgMissed: {
-    backgroundColor: "#fee2e2",
+    marginRight: 12,
   },
   callInfo: {
     flex: 1,
   },
-  callHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
   counterpartName: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0f172a",
-    flex: 1,
-    marginRight: 8,
-  },
-  callDate: {
-    fontSize: 11,
-    color: "#94a3b8",
+    color: "#181C1B",
+    marginBottom: 4,
   },
   detailsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  roleTag: {
-    backgroundColor: "#f1f5f9",
+  roleTagSmall: {
+    backgroundColor: "#F5EDD8",
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
   },
   roleTagText: {
     fontSize: 9,
     fontWeight: "700",
-    color: "#475569",
+    color: "#92610A",
   },
-  callStatusText: {
+  callTimestamp: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#636B69",
+  },
+  callRight: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  durationText: {
+    fontSize: 12,
+    color: "#A0A8A6",
   },
   callBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#ecfdf5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
+    padding: 6,
   },
 });

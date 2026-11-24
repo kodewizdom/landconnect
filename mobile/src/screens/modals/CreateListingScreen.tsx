@@ -17,6 +17,7 @@ import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { useListingStore } from "../../store/useListingStore";
 import { AreaUnit } from "../../types/listing";
+import { Colors, formatINR } from "../../theme";
 
 export const CreateListingScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -211,155 +212,162 @@ export const CreateListingScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.headerTitle}>Post New Land Plot</Text>
-      <Text style={styles.headerSubtitle}>
-        Share verified land details, GPS coordinates, and photos.
-      </Text>
-
-      {/* Image Picker Section */}
-      <Text style={styles.sectionLabel}>Property Photos (Max 5)</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-        {selectedImages.map((img, idx) => (
-          <View key={idx} style={styles.imageThumbContainer}>
-            <Image source={{ uri: img.uri }} style={styles.imageThumb} />
-            <TouchableOpacity
-              style={styles.removeImageBtn}
-              onPress={() => handleRemoveImage(idx)}
-            >
-              <Ionicons name="close" size={14} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        ))}
-
-        {selectedImages.length < 5 && (
-          <TouchableOpacity style={styles.addPhotoCard} onPress={handleAddPhotoOptions}>
-            <Ionicons name="camera-outline" size={28} color="#1b5e20" />
-            <Text style={styles.addPhotoText}>Add Photo</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-
-      {/* Basic Info */}
-      <Text style={styles.inputLabel}>Listing Title *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 2 Acres Farmland near Highway"
-        placeholderTextColor="#888"
-        value={title}
-        onChangeText={setTitle}
-      />
-
-      <Text style={styles.inputLabel}>Price in INR (₹) *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 4500000"
-        placeholderTextColor="#888"
-        keyboardType="numeric"
-        value={price}
-        onChangeText={setPrice}
-      />
-
-      {/* Area & Unit */}
-      <View style={styles.row}>
-        <View style={{ flex: 1, marginRight: 10 }}>
-          <Text style={styles.inputLabel}>Area Size *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 2.5"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            value={areaSize}
-            onChangeText={setAreaSize}
-          />
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.inputLabel}>Unit</Text>
-          <View style={styles.unitPickerRow}>
-            {(["acre", "sqft", "gunta", "ha"] as AreaUnit[]).map((unit) => (
+      {/* PHOTOS Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>PHOTOS</Text>
+        <Text style={styles.sectionHint}>Property photos · max 5 images</Text>
+        <View style={styles.photoGrid}>
+          {selectedImages.map((img, idx) => (
+            <View key={idx} style={styles.photoCell}>
+              <Image source={{ uri: img.uri }} style={styles.photoThumb} />
               <TouchableOpacity
-                key={unit}
-                style={[
-                  styles.unitBtn,
-                  areaUnit === unit && styles.unitBtnActive,
-                ]}
-                onPress={() => setAreaUnit(unit)}
+                style={styles.removePhotoBtn}
+                onPress={() => handleRemoveImage(idx)}
               >
-                <Text
-                  style={[
-                    styles.unitBtnText,
-                    areaUnit === unit && styles.unitBtnTextActive,
-                  ]}
-                >
-                  {unit}
-                </Text>
+                <Ionicons name="close-circle" size={22} color={Colors.error} />
               </TouchableOpacity>
-            ))}
+            </View>
+          ))}
+
+          {selectedImages.length < 5 && (
+            <TouchableOpacity style={styles.addPhotoCell} onPress={handleAddPhotoOptions}>
+              <Ionicons name="add-circle" size={32} color={Colors.gold} />
+              <Text style={styles.addPhotoLabel}>Add Photo</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* PROPERTY DETAILS Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>PROPERTY DETAILS</Text>
+
+        <Text style={styles.inputLabel}>Listing Title *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 2 Acres Farmland near Highway"
+          placeholderTextColor={Colors.muted}
+          value={title}
+          onChangeText={setTitle}
+        />
+
+        <Text style={styles.inputLabel}>Detailed Description *</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder="Provide details on soil, road access, water availability, and title deeds..."
+          placeholderTextColor={Colors.muted}
+          multiline
+          numberOfLines={4}
+          value={description}
+          onChangeText={setDescription}
+        />
+      </View>
+
+      {/* PRICING Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>PRICING</Text>
+
+        <Text style={styles.inputLabel}>Price in INR (₹) *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 4500000"
+          placeholderTextColor={Colors.muted}
+          keyboardType="numeric"
+          value={price}
+          onChangeText={setPrice}
+        />
+
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={styles.inputLabel}>Area Size *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2.5"
+              placeholderTextColor={Colors.muted}
+              keyboardType="numeric"
+              value={areaSize}
+              onChangeText={setAreaSize}
+            />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inputLabel}>Unit</Text>
+            <View style={styles.unitPillRow}>
+              {(["acre", "sqft", "gunta", "ha"] as AreaUnit[]).map((unit) => (
+                <TouchableOpacity
+                  key={unit}
+                  style={[styles.unitPill, areaUnit === unit && styles.unitPillActive]}
+                  onPress={() => setAreaUnit(unit)}
+                >
+                  <Text
+                    style={[
+                      styles.unitPillText,
+                      areaUnit === unit && styles.unitPillTextActive,
+                    ]}
+                  >
+                    {unit}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
       </View>
 
-      <Text style={styles.inputLabel}>Location / Address Label *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Devanahalli, Bengaluru Rural, Karnataka"
-        placeholderTextColor="#888"
-        value={addressText}
-        onChangeText={setAddressText}
-      />
+      {/* LOCATION Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionEyebrow}>LOCATION</Text>
 
-      {/* Geolocation Section */}
-      <View style={styles.gpsHeader}>
-        <Text style={styles.inputLabel}>GPS Coordinates</Text>
-        <TouchableOpacity
-          style={styles.gpsBtn}
-          onPress={handleGetCurrentLocation}
-          disabled={isLocating}
-        >
-          {isLocating ? (
-            <ActivityIndicator size="small" color="#1b5e20" />
-          ) : (
-            <>
-              <Ionicons name="navigate-outline" size={14} color="#1b5e20" />
-              <Text style={styles.gpsBtnText}>Use My GPS</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+        <Text style={styles.inputLabel}>Address Label *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Devanahalli, Bengaluru Rural, Karnataka"
+          placeholderTextColor={Colors.muted}
+          value={addressText}
+          onChangeText={setAddressText}
+        />
 
-      <View style={styles.row}>
-        <View style={{ flex: 1, marginRight: 10 }}>
-          <TextInput
-            style={styles.input}
-            placeholder="Latitude"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            value={latitude}
-            onChangeText={setLatitude}
-          />
+        <View style={styles.gpsHeader}>
+          <Text style={styles.inputLabel}>GPS Coordinates</Text>
+          <TouchableOpacity
+            style={styles.gpsBtn}
+            onPress={handleGetCurrentLocation}
+            disabled={isLocating}
+          >
+            {isLocating ? (
+              <ActivityIndicator size="small" color={Colors.emerald} />
+            ) : (
+              <>
+                <Ionicons name="locate-outline" size={14} color={Colors.emerald} />
+                <Text style={styles.gpsBtnText}>Use My GPS</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
-        <View style={{ flex: 1 }}>
-          <TextInput
-            style={styles.input}
-            placeholder="Longitude"
-            placeholderTextColor="#888"
-            keyboardType="numeric"
-            value={longitude}
-            onChangeText={setLongitude}
-          />
+
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Latitude"
+              placeholderTextColor={Colors.muted}
+              keyboardType="numeric"
+              value={latitude}
+              onChangeText={setLatitude}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Longitude"
+              placeholderTextColor={Colors.muted}
+              keyboardType="numeric"
+              value={longitude}
+              onChangeText={setLongitude}
+            />
+          </View>
         </View>
       </View>
-
-      <Text style={styles.inputLabel}>Detailed Description *</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="Provide details on soil, road access, water availability, and title deeds..."
-        placeholderTextColor="#888"
-        multiline
-        numberOfLines={4}
-        value={description}
-        onChangeText={setDescription}
-      />
 
       <TouchableOpacity
         style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
@@ -367,7 +375,7 @@ export const CreateListingScreen: React.FC = () => {
         disabled={isSubmitting}
       >
         {isSubmitting ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={Colors.ivory} />
         ) : (
           <Text style={styles.submitBtnText}>Publish Land Listing</Text>
         )}
@@ -379,86 +387,83 @@ export const CreateListingScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.alabaster,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 48,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1b5e20",
+  section: {
+    backgroundColor: Colors.ivory,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 4,
-    marginBottom: 16,
+  sectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.slate,
+    marginBottom: 4,
   },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
+  sectionHint: {
+    fontSize: 12,
+    color: Colors.muted,
+    marginBottom: 14,
   },
-  imageScroll: {
+  photoGrid: {
     flexDirection: "row",
-    marginBottom: 16,
+    flexWrap: "wrap",
+    gap: 10,
   },
-  imageThumbContainer: {
+  photoCell: {
     position: "relative",
-    marginRight: 10,
+    width: 100,
+    height: 100,
   },
-  imageThumb: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-  },
-  removeImageBtn: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#c62828",
-    width: 20,
-    height: 20,
+  photoThumb: {
+    width: 100,
+    height: 100,
     borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
   },
-  addPhotoCard: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+  removePhotoBtn: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+  },
+  addPhotoCell: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: "#1b5e20",
+    borderColor: Colors.gold,
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f0fdf4",
+    backgroundColor: Colors.goldLight,
   },
-  addPhotoText: {
+  addPhotoLabel: {
     fontSize: 10,
-    color: "#1b5e20",
-    fontWeight: "bold",
-    marginTop: 2,
+    color: Colors.warning,
+    fontWeight: "700",
+    marginTop: 4,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
-    color: "#333",
+    color: Colors.slate,
     marginBottom: 6,
     marginTop: 10,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 10,
+    borderColor: Colors.sand,
+    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     fontSize: 14,
-    color: "#222",
-    backgroundColor: "#fafbfc",
+    color: Colors.charcoal,
+    backgroundColor: Colors.ivory,
   },
   textArea: {
     height: 90,
@@ -467,32 +472,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
   },
-  unitPickerRow: {
+  unitPillRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
   },
-  unitBtn: {
-    paddingHorizontal: 8,
+  unitPill: {
+    paddingHorizontal: 10,
     paddingVertical: 7,
-    borderRadius: 6,
-    backgroundColor: "#f3f4f6",
-    marginRight: 4,
-    marginBottom: 4,
+    borderRadius: 8,
+    backgroundColor: Colors.alabaster,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: Colors.sand,
   },
-  unitBtnActive: {
-    backgroundColor: "#e8f5e9",
-    borderColor: "#1b5e20",
+  unitPillActive: {
+    backgroundColor: Colors.goldLight,
+    borderColor: Colors.gold,
   },
-  unitBtnText: {
+  unitPillText: {
     fontSize: 11,
-    color: "#555",
+    color: Colors.slate,
     fontWeight: "600",
   },
-  unitBtnTextActive: {
-    color: "#1b5e20",
-    fontWeight: "bold",
+  unitPillTextActive: {
+    color: Colors.warning,
+    fontWeight: "700",
   },
   gpsHeader: {
     flexDirection: "row",
@@ -502,30 +507,31 @@ const styles = StyleSheet.create({
   gpsBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
-    backgroundColor: "#e8f5e9",
+    borderWidth: 1,
+    borderColor: Colors.gold,
+    gap: 5,
   },
   gpsBtnText: {
     fontSize: 11,
-    fontWeight: "bold",
-    color: "#1b5e20",
-    marginLeft: 4,
+    fontWeight: "700",
+    color: Colors.emerald,
   },
   submitBtn: {
-    backgroundColor: "#1b5e20",
-    paddingVertical: 14,
+    backgroundColor: Colors.emerald,
+    paddingVertical: 15,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 8,
   },
   btnDisabled: {
     opacity: 0.7,
   },
   submitBtnText: {
-    color: "#fff",
+    color: Colors.ivory,
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
 });

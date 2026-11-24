@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../types/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -53,49 +54,57 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header Branding */}
-        <View style={styles.header}>
-          <Text style={styles.brandTitle}>LandConnect</Text>
-          <Text style={styles.brandSubtitle}>Direct Land Deals with Zero Privacy Exposure</Text>
-        </View>
+      {/* Header Crest Block */}
+      <View style={styles.crestHeader}>
+        <Text style={styles.brandTitle}>LANDCONNECT</Text>
+        <Text style={styles.brandSubtitle}>Private Land Marketplace</Text>
+        <View style={styles.diamondSeparator} />
+      </View>
 
-        {/* Demo Fast-Login Chips */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Demo Access Section */}
         <View style={styles.demoSection}>
-          <Text style={styles.demoSectionTitle}>⚡ Quick Demo Sign-In (Password@123):</Text>
+          <Text style={styles.demoEyebrow}>QUICK DEMO ACCESS</Text>
           <View style={styles.demoChipsRow}>
             <TouchableOpacity
-              style={[styles.demoChip, { borderColor: "#2e7d32", backgroundColor: "#e8f5e9" }]}
+              style={styles.demoPill}
               onPress={() => handleQuickDemoFill("buyer@landconnect.com")}
             >
-              <Text style={[styles.demoChipText, { color: "#1b5e20" }]}>🟢 Buyer</Text>
+              <Ionicons name="person-outline" size={14} color="#0B2B26" />
+              <Text style={styles.demoPillText}>Buyer</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.demoChip, { borderColor: "#f57c00", backgroundColor: "#fff3e0" }]}
+              style={styles.demoPill}
               onPress={() => handleQuickDemoFill("seller@landconnect.com")}
             >
-              <Text style={[styles.demoChipText, { color: "#e65100" }]}>🟡 Seller</Text>
+              <Ionicons name="home-outline" size={14} color="#0B2B26" />
+              <Text style={styles.demoPillText}>Seller</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.demoChip, { borderColor: "#1976d2", backgroundColor: "#e3f2fd" }]}
+              style={styles.demoPill}
               onPress={() => handleQuickDemoFill("broker@landconnect.com")}
             >
-              <Text style={[styles.demoChipText, { color: "#0d47a1" }]}>🔵 Broker</Text>
+              <Ionicons name="briefcase-outline" size={14} color="#0B2B26" />
+              <Text style={styles.demoPillText}>Broker</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Form Fields */}
+        {/* Form Card */}
         <View style={styles.formCard}>
-          {error && <Text style={styles.errorBanner}>{error}</Text>}
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{error}</Text>
+            </View>
+          ) : null}
 
-          <Text style={styles.inputLabel}>Email Address</Text>
+          <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. buyer@landconnect.com"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -105,11 +114,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             }}
           />
 
-          <Text style={styles.inputLabel}>Password</Text>
+          <Text style={styles.inputLabel}>PASSWORD</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
-            placeholderTextColor="#999"
+            placeholderTextColor="#9CA5A3"
             secureTextEntry
             value={password}
             onChangeText={(text) => {
@@ -131,7 +140,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#C5A059" />
             ) : (
               <Text style={styles.primaryBtnText}>Log In</Text>
             )}
@@ -151,11 +160,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Footer navigation */}
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
+          <Text style={styles.footerText}>New member? </Text>
           <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-            <Text style={styles.footerLink}>Register now</Text>
+            <Text style={styles.footerLink}>Create Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -166,128 +175,145 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f6f8",
+    backgroundColor: "#F8F7F4",
   },
-  scrollContent: {
-    padding: 24,
-    justifyContent: "center",
-  },
-  header: {
+  crestHeader: {
+    backgroundColor: "#0B2B26",
+    paddingTop: 60,
+    paddingBottom: 36,
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 24,
   },
   brandTitle: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#1b5e20",
-    letterSpacing: 0.5,
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 4,
+    color: "#C5A059",
   },
   brandSubtitle: {
-    fontSize: 14,
-    color: "#555",
-    marginTop: 6,
-    textAlign: "center",
+    fontSize: 12,
+    color: "rgba(197,160,89,0.7)",
+    marginTop: 4,
+    letterSpacing: 1.5,
+  },
+  diamondSeparator: {
+    width: 8,
+    height: 8,
+    backgroundColor: "#C5A059",
+    transform: [{ rotate: "45deg" }],
+    marginTop: 16,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   demoSection: {
-    marginBottom: 20,
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+    marginBottom: 16,
   },
-  demoSectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#444",
+  demoEyebrow: {
+    letterSpacing: 1.2,
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#636B69",
     marginBottom: 10,
   },
   demoChipsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 8,
   },
-  demoChip: {
+  demoPill: {
     flex: 1,
-    marginHorizontal: 3,
-    paddingVertical: 8,
-    borderRadius: 8,
     borderWidth: 1,
+    borderColor: "#E6E2D8",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
   },
-  demoChipText: {
-    fontSize: 12,
-    fontWeight: "700",
+  demoPillText: {
+    color: "#181C1B",
+    fontSize: 13,
+    fontWeight: "600",
   },
   formCard: {
-    backgroundColor: "#fff",
-    padding: 20,
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
+    padding: 24,
+    marginTop: 16,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
   errorBanner: {
-    backgroundColor: "#ffebee",
-    color: "#c62828",
-    padding: 10,
+    backgroundColor: "#FEE2E2",
     borderRadius: 8,
+    padding: 10,
     marginBottom: 12,
+  },
+  errorBannerText: {
+    color: "#8B1A1A",
     fontSize: 13,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#333",
+    color: "#636B69",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 6,
-    marginTop: 10,
+    marginTop: 14,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderBottomWidth: 1.5,
+    borderColor: "#E6E2D8",
+    paddingVertical: 10,
     fontSize: 15,
-    color: "#222",
-    backgroundColor: "#fafbfc",
+    color: "#181C1B",
+    backgroundColor: "transparent",
   },
   forgotBtn: {
     alignSelf: "flex-end",
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 10,
+    marginBottom: 4,
   },
   forgotBtnText: {
     fontSize: 13,
-    color: "#1b5e20",
+    color: "#C5A059",
     fontWeight: "600",
   },
   primaryBtn: {
-    backgroundColor: "#1b5e20",
-    paddingVertical: 14,
+    backgroundColor: "#0B2B26",
     borderRadius: 10,
+    paddingVertical: 15,
+    marginTop: 24,
     alignItems: "center",
   },
   btnDisabled: {
     opacity: 0.7,
   },
   primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.6,
   },
   googleBtn: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#E6E2D8",
     paddingVertical: 13,
     borderRadius: 10,
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
   },
   googleBtnText: {
-    color: "#333",
+    color: "#636B69",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -298,12 +324,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   footerText: {
-    color: "#666",
+    color: "#636B69",
     fontSize: 14,
   },
   footerLink: {
-    color: "#1b5e20",
-    fontWeight: "bold",
+    color: "#C5A059",
+    fontWeight: "700",
     fontSize: 14,
   },
 });

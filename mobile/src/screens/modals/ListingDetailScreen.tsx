@@ -17,6 +17,7 @@ import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { roomApi } from "../../api/room.api";
+import { Colors, formatINR } from "../../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ListingDetail">;
 
@@ -84,7 +85,7 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (isLoading || !selectedListing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#1b5e20" />
+        <ActivityIndicator size="large" color={Colors.emerald} />
       </View>
     );
   }
@@ -101,16 +102,24 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           },
         ];
 
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) return `₹${(price / 10000000).toFixed(2)} Cr`;
-    if (price >= 100000) return `₹${(price / 100000).toFixed(2)} Lakh`;
-    return `₹${price.toLocaleString("en-IN")}`;
-  };
+  const statusColor =
+    selectedListing.status === "available"
+      ? Colors.success
+      : selectedListing.status === "negotiation"
+      ? Colors.warning
+      : Colors.error;
+
+  const statusLabel =
+    selectedListing.status === "available"
+      ? "AVAILABLE"
+      : selectedListing.status === "negotiation"
+      ? "NEGOTIATION"
+      : "SOLD";
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Swipeable Photo Gallery */}
+        {/* Full-bleed Image Gallery */}
         <View style={styles.galleryContainer}>
           <ScrollView
             horizontal
@@ -123,7 +132,11 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             scrollEventThrottle={16}
           >
             {images.map((img, idx) => (
-              <Image key={img.id || idx} source={{ uri: img.image_url }} style={styles.galleryImage} />
+              <Image
+                key={img.id || idx}
+                source={{ uri: img.image_url }}
+                style={styles.galleryImage}
+              />
             ))}
           </ScrollView>
 
@@ -133,67 +146,57 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               {images.map((_, idx) => (
                 <View
                   key={idx}
-                  style={[
-                    styles.dot,
-                    activeImageIndex === idx && styles.dotActive,
-                  ]}
+                  style={[styles.dot, activeImageIndex === idx && styles.dotActive]}
                 />
               ))}
             </View>
           )}
-
-          {/* Status Badge Over Image */}
-          <View style={styles.floatingStatus}>
-            <Text style={styles.floatingStatusText}>
-              {selectedListing.status.toUpperCase()}
-            </Text>
-          </View>
         </View>
 
-        {/* Content Body */}
-        <View style={styles.body}>
-          <Text style={styles.price}>{formatPrice(selectedListing.price)}</Text>
-          <Text style={styles.title}>{selectedListing.title}</Text>
-
-          <View style={styles.locationRow}>
-            <Ionicons name="location-sharp" size={16} color="#1b5e20" />
-            <Text style={styles.locationText}>{selectedListing.address_text}</Text>
+        {/* Price Hero Block */}
+        <View style={styles.priceHero}>
+          <View style={[styles.heroStatusPill, { backgroundColor: statusColor }]}>
+            <Text style={styles.heroStatusText}>{statusLabel}</Text>
           </View>
+          <Text style={styles.heroPrice}>{formatINR(selectedListing.price)}</Text>
+          <Text style={styles.heroTitle}>{selectedListing.title}</Text>
+        </View>
 
-          {/* Specs Grid */}
-          <View style={styles.specsCard}>
+        {/* Property Details Card */}
+        <View style={styles.infoCard}>
+          <Text style={styles.cardEyebrow}>PROPERTY DETAILS</Text>
+
+          <View style={styles.specsGrid}>
             <View style={styles.specItem}>
               <Text style={styles.specLabel}>Area Size</Text>
               <Text style={styles.specValue}>{selectedListing.area_size}</Text>
             </View>
-
             <View style={styles.specDivider} />
-
             <View style={styles.specItem}>
               <Text style={styles.specLabel}>Unit</Text>
               <Text style={styles.specValue}>{selectedListing.area_unit.toUpperCase()}</Text>
             </View>
-
             <View style={styles.specDivider} />
-
             <View style={styles.specItem}>
               <Text style={styles.specLabel}>Status</Text>
-              <Text style={styles.specValue}>
-                {selectedListing.status === "available"
-                  ? "Available"
-                  : selectedListing.status === "negotiation"
-                  ? "Negotiating"
-                  : "Sold"}
-              </Text>
+              <Text style={[styles.specValue, { color: statusColor }]}>{statusLabel}</Text>
             </View>
           </View>
 
-          {/* Description */}
-          <Text style={styles.sectionHeading}>Property Overview</Text>
-          <Text style={styles.description}>{selectedListing.description}</Text>
+          <View style={styles.divider} />
 
-          {/* Embedded Mini Map Preview */}
-          <Text style={styles.sectionHeading}>Location on Map</Text>
+          <Text style={styles.sectionEyebrow}>OVERVIEW</Text>
+          <Text style={styles.description}>{selectedListing.description}</Text>
+        </View>
+
+        {/* Location Card */}
+        <View style={styles.infoCard}>
+          <Text style={styles.cardEyebrow}>LOCATION</Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-sharp" size={16} color={Colors.gold} />
+            <Text style={styles.locationText}>{selectedListing.address_text}</Text>
+          </View>
+
           <View style={styles.miniMapContainer}>
             <MapView
               provider={PROVIDER_DEFAULT}
@@ -216,15 +219,18 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </MapView>
             <View style={styles.coordsOverlay}>
               <Text style={styles.coordsText}>
-                GPS: {selectedListing.latitude.toFixed(4)}, {selectedListing.longitude.toFixed(4)}
+                GPS: {selectedListing.latitude.toFixed(4)},{" "}
+                {selectedListing.longitude.toFixed(4)}
               </Text>
             </View>
           </View>
+        </View>
 
-          {/* Owner Card (Strictly Zero PII) */}
-          <Text style={styles.sectionHeading}>Listed By</Text>
-          <View style={styles.ownerCard}>
-            <Ionicons name="person-circle" size={48} color="#1b5e20" />
+        {/* Owner Card — Zero PII */}
+        <View style={styles.infoCard}>
+          <Text style={styles.cardEyebrow}>LISTED BY</Text>
+          <View style={styles.ownerRow}>
+            <Ionicons name="person-circle" size={48} color={Colors.emerald} />
             <View style={styles.ownerDetails}>
               <Text style={styles.ownerName}>
                 {selectedListing.owner?.full_name || "Verified Land Seller"}
@@ -235,12 +241,13 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                     {selectedListing.owner?.role?.toUpperCase() || "SELLER"}
                   </Text>
                 </View>
-                <View style={styles.onlineBadge}>
-                  <View style={styles.onlineDot} />
-                  <Text style={styles.onlineText}>In-App Available</Text>
-                </View>
               </View>
             </View>
+          </View>
+
+          <View style={styles.piiProtectedRow}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={Colors.success} />
+            <Text style={styles.piiProtectedText}>Contact details protected</Text>
           </View>
         </View>
       </ScrollView>
@@ -251,14 +258,14 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           style={styles.callIconBtn}
           onPress={() => handleCall("audio")}
         >
-          <Ionicons name="call-outline" size={20} color="#1b5e20" />
+          <Ionicons name="call-outline" size={20} color={Colors.gold} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.callIconBtn}
           onPress={() => handleCall("video")}
         >
-          <Ionicons name="videocam-outline" size={20} color="#1b5e20" />
+          <Ionicons name="videocam-outline" size={20} color={Colors.gold} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -267,16 +274,16 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           disabled={isInquiring}
         >
           {isInquiring ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={Colors.ivory} size="small" />
           ) : (
             <>
               <Ionicons
                 name="chatbubble-ellipses-outline"
                 size={18}
-                color="#fff"
+                color={Colors.ivory}
                 style={{ marginRight: 8 }}
               />
-              <Text style={styles.inquireBtnText}>Inquire / Chat</Text>
+              <Text style={styles.inquireBtnText}>Message Owner</Text>
             </>
           )}
         </TouchableOpacity>
@@ -288,12 +295,13 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.alabaster,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: Colors.alabaster,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -323,55 +331,59 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     width: 20,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.ivory,
   },
-  floatingStatus: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+  priceHero: {
+    backgroundColor: Colors.emerald,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
   },
-  floatingStatusText: {
-    color: "#a5d6a7",
-    fontWeight: "bold",
-    fontSize: 12,
+  heroStatusPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 10,
   },
-  body: {
-    padding: 20,
+  heroStatusText: {
+    color: Colors.ivory,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
   },
-  price: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#1b5e20",
+  heroPrice: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: Colors.gold,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#222",
+  heroTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.ivory,
     marginTop: 4,
   },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
+  infoCard: {
+    backgroundColor: Colors.ivory,
+    borderRadius: 16,
+    margin: 16,
+    marginBottom: 0,
+    padding: 16,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
-  locationText: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 4,
-    flex: 1,
+  cardEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.slate,
+    marginBottom: 14,
   },
-  specsCard: {
+  specsGrid: {
     flexDirection: "row",
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    paddingVertical: 14,
-    marginTop: 18,
     alignItems: "center",
   },
   specItem: {
@@ -381,37 +393,52 @@ const styles = StyleSheet.create({
   specDivider: {
     width: 1,
     height: 30,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: Colors.sand,
   },
   specLabel: {
-    fontSize: 12,
-    color: "#777",
+    fontSize: 11,
+    color: Colors.slate,
+    marginBottom: 4,
   },
   specValue: {
     fontSize: 15,
-    fontWeight: "bold",
-    color: "#222",
-    marginTop: 2,
+    fontWeight: "700",
+    color: Colors.charcoal,
   },
-  sectionHeading: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 22,
+  divider: {
+    height: 1,
+    backgroundColor: Colors.sand,
+    marginVertical: 14,
+  },
+  sectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: Colors.slate,
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
     lineHeight: 22,
-    color: "#4b5563",
+    color: Colors.slate,
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  locationText: {
+    fontSize: 14,
+    color: Colors.charcoal,
+    marginLeft: 6,
+    flex: 1,
   },
   miniMapContainer: {
     height: 160,
     borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    marginTop: 6,
+    borderColor: Colors.sand,
   },
   miniMap: {
     width: "100%",
@@ -421,25 +448,20 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 6,
     right: 8,
-    backgroundColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(255,255,255,0.90)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
   },
   coordsText: {
     fontSize: 11,
-    color: "#333",
+    color: Colors.charcoal,
     fontWeight: "600",
   },
-  ownerCard: {
+  ownerRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0fdf4",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-    marginTop: 6,
+    marginBottom: 12,
   },
   ownerDetails: {
     marginLeft: 12,
@@ -447,40 +469,36 @@ const styles = StyleSheet.create({
   },
   ownerName: {
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#166534",
+    fontWeight: "700",
+    color: Colors.charcoal,
   },
   ownerBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 6,
   },
   roleBadge: {
-    backgroundColor: "#166534",
+    backgroundColor: Colors.emerald,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
-    marginRight: 8,
   },
   roleBadgeText: {
-    color: "#fff",
+    color: Colors.ivory,
     fontSize: 10,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
-  onlineBadge: {
+  piiProtectedRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.sand,
   },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#22c55e",
-    marginRight: 4,
-  },
-  onlineText: {
-    fontSize: 11,
-    color: "#15803d",
+  piiProtectedText: {
+    fontSize: 13,
+    color: Colors.success,
     fontWeight: "500",
   },
   bottomBar: {
@@ -488,27 +506,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.ivory,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: Colors.sand,
     flexDirection: "row",
     alignItems: "center",
   },
   callIconBtn: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: Colors.gold,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
   inquireBtn: {
     flex: 1,
-    backgroundColor: "#1b5e20",
+    backgroundColor: Colors.emerald,
     height: 46,
     borderRadius: 10,
     flexDirection: "row",
@@ -519,8 +537,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   inquireBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: Colors.ivory,
+    fontWeight: "700",
     fontSize: 15,
   },
 });
