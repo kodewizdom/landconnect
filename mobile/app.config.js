@@ -29,7 +29,21 @@ module.exports = {
     },
     plugins: [
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          android: {
+            enableMinifyInReleaseBuilds: false,
+            enableShrinkResourcesInReleaseBuilds: false,
+            extraProguardRules: [
+              "-keep class * extends androidx.room.RoomDatabase { *; }",
+              "-keep class androidx.work.** { *; }",
+              "-keep class androidx.startup.** { *; }",
+            ].join("\n"),
+          },
+        },
+      ],
     ],
     extra: {
       eas: {
