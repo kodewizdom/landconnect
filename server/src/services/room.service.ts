@@ -1,0 +1,321 @@
+import { RoomType, Role } from "@prisma/client";
+import prisma from "../config/prisma";
+import { maskUser, MaskedUser } from "../utils/piiMask";
+import { CreateRoomInput, RoomMessagesQueryInput } from "../validators/room.validator";
+
+export interface FormattedRoom {
+  id: string;
+  type: string;
+  name: string | null;
+  listing_id: string | null;
+  created_by: string;
+  created_at: Date;
+  listing?: {
+    id: string;
+    title: string;
+    price: number;
+    address_text: string;
+  } | null;
+  participants: Array<{
+    user_id: string;
+    joined_at: Date;
+    user: MaskedUser;
+  }>;
+  latest_message?: {
+    id: string;
+    content: string;
+    created_at: Date;
+    sender: MaskedUser;
+  } | null;
+}
+
+export interface FormattedMessage {
+  id: string;
+  room_id: string;
+  content: string;
+  created_at: Date;
+  sender: MaskedUser;
+}
+
+export class RoomService {
+  /**
+   * Create or return an existing 1-on-1 direct room, or create a group negotiation room
+   */
+  async createOrGetRoom(currentUserId: string, data: CreateRoomInput): Promise<FormattedRoom> {
+    const isDirect = data.type === "direct";
+
+    if (isDirect) {
+      const targetUserId =
+        data.participantIds.find((id) => id !== currentUserId) || data.participantIds[0];
+
+      // Check if 1-on-1 direct room already exists between these users (linked to listing if provided)
+      const existingRoom = await prisma.room.findFirst({
+        where: {
+          type: RoomType.direct,
+          ...(data.listingId ? { listing_id: data.listingId } : {}),
+          AND: [
+            { participants: { some: { user_id: currentUserId } } },
+            { participants: { some: { user_id: targetUserId } } },
+          ],
+        },
+        include: {
+          listing: {
+            select: { id: true, title: true, price: true, address_text: true },
+          },
+          participants: {
+            include: { user: true },
+          },
+          messages: {
+            take: 1,
+            orderBy: { created_at: "desc" },
+            include: { sender: true },
+          },
+        },
+      });
+
+      if (existingRoom) {
+        return this.formatRoom(existingRoom);
+      }
+
+      // Create new direct room
+      const distinctUsers = Array.from(new Set([currentUserId, targetUserId]));
+      const newRoom = await prisma.room.create({
+        data: {
+          type: RoomType.direct,
+          created_by: currentUserId,
+          listing_id: data.listingId || null,
+          participants: {
+            create: distinctUsers.map((uid) => ({ user_id: uid })),
+          },
+        },
+        include: {
+          listing: {
+            select: { id: true, title: true, price: true, address_text: true },
+          },
+          participants: {
+            include: { user: true },
+          },
+          messages: {
+            take: 1,
+            orderBy: { created_at: "desc" },
+            include: { sender: true },
+          },
+        },
+      });
+
+      return this.formatRoom(newRoom);
+    }
+
+    // Multi-party meeting room
+    const distinctUsers = Array.from(new Set([currentUserId, ...data.participantIds]));
+    const roomName = data.title || data.name || "Negotiation Room";
+
+    const newMeetingRoom = await prisma.room.create({
+      data: {
+        type: RoomType.meeting_room,
+        name: roomName,
+        created_by: currentUserId,
+        listing_id: data.listingId || null,
+        participants: {
+          create: distinctUsers.map((uid) => ({ user_id: uid })),
+        },
+      },
+      include: {
+        listing: {
+          select: { id: true, title: true, price: true, address_text: true },
+        },
+        participants: {
+          include: { user: true },
+        },
+        messages: {
+          take: 1,
+          orderBy: { created_at: "desc" },
+          include: { sender: true },
+        },
+      },
+    });
+
+    return this.formatRoom(newMeetingRoom);
+  }
+
+  /**
+   * List all rooms the user belongs to, including latest message preview and masked participants
+   */
+  async getRoomsForUser(userId: string): Promise<FormattedRoom[]> {
+    const rooms = await prisma.room.findMany({
+      where: {
+        participants: {
+          some: { user_id: userId },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      include: {
+        listing: {
+          select: { id: true, title: true, price: true, address_text: true },
+        },
+        participants: {
+          include: { user: true },
+        },
+        messages: {
+          take: 1,
+          orderBy: { created_at: "desc" },
+          include: { sender: true },
+        },
+      },
+    });
+
+    return rooms.map((room) => this.formatRoom(room));
+  }
+
+  /**
+   * Get paginated message history for a room (validates participation first)
+   */
+  async getRoomMessages(
+    roomId: string,
+    userId: string,
+    query: RoomMessagesQueryInput
+  ): Promise<{
+    data: FormattedMessage[];
+    pagination: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    const participant = await prisma.roomParticipant.findUnique({
+      where: {
+        room_id_user_id: {
+          room_id: roomId,
+          user_id: userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      const error = new Error("Forbidden: You are not a participant in this room");
+      (error as unknown as { statusCode: number }).statusCode = 403;
+      throw error;
+    }
+
+    const { page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    const [total, messages] = await Promise.all([
+      prisma.message.count({ where: { room_id: roomId } }),
+      prisma.message.findMany({
+        where: { room_id: roomId },
+        skip,
+        take: limit,
+        orderBy: { created_at: "desc" },
+        include: { sender: true },
+      }),
+    ]);
+
+    return {
+      data: messages.map((m) => ({
+        id: m.id,
+        room_id: m.room_id,
+        content: m.content,
+        created_at: m.created_at,
+        sender: maskUser(m.sender),
+      })),
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /**
+   * Add participant to a room (allowed for room creator or brokers)
+   */
+  async addParticipant(roomId: string, currentUserId: string, newUserId: string): Promise<FormattedRoom> {
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: {
+        creator: true,
+        participants: true,
+      },
+    });
+
+    if (!room) {
+      const error = new Error("Room not found");
+      (error as unknown as { statusCode: number }).statusCode = 404;
+      throw error;
+    }
+
+    const currentUser = await prisma.user.findUnique({ where: { id: currentUserId } });
+    const isCreator = room.created_by === currentUserId;
+    const isBroker = currentUser?.role === Role.broker;
+
+    if (!isCreator && !isBroker) {
+      const error = new Error("Forbidden: Only the room creator or a broker can add participants");
+      (error as unknown as { statusCode: number }).statusCode = 403;
+      throw error;
+    }
+
+    // Check if new user is already a participant
+    const alreadyParticipant = room.participants.some((p) => p.user_id === newUserId);
+    if (!alreadyParticipant) {
+      await prisma.roomParticipant.create({
+        data: {
+          room_id: roomId,
+          user_id: newUserId,
+        },
+      });
+    }
+
+    const updatedRoom = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: {
+        listing: {
+          select: { id: true, title: true, price: true, address_text: true },
+        },
+        participants: {
+          include: { user: true },
+        },
+        messages: {
+          take: 1,
+          orderBy: { created_at: "desc" },
+          include: { sender: true },
+        },
+      },
+    });
+
+    return this.formatRoom(updatedRoom!);
+  }
+
+  private formatRoom(room: any): FormattedRoom {
+    const latestMsg = room.messages && room.messages.length > 0 ? room.messages[0] : null;
+
+    return {
+      id: room.id,
+      type: room.type,
+      name: room.name,
+      listing_id: room.listing_id,
+      created_by: room.created_by,
+      created_at: room.created_at,
+      listing: room.listing
+        ? {
+            id: room.listing.id,
+            title: room.listing.title,
+            price: Number(room.listing.price),
+            address_text: room.listing.address_text,
+          }
+        : null,
+      participants: (room.participants || []).map((p: any) => ({
+        user_id: p.user_id,
+        joined_at: p.joined_at,
+        user: maskUser(p.user),
+      })),
+      latest_message: latestMsg
+        ? {
+            id: latestMsg.id,
+            content: latestMsg.content,
+            created_at: latestMsg.created_at,
+            sender: maskUser(latestMsg.sender),
+          }
+        : null,
+    };
+  }
+}
+
+export const roomService = new RoomService();

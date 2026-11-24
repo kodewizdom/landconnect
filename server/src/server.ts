@@ -1,11 +1,19 @@
+import http from "http";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { env } from "./config/env";
 import authRoutes from "./routes/auth.routes";
 import listingRoutes from "./routes/listing.routes";
+import roomRoutes from "./routes/room.routes";
+import callRoutes from "./routes/call.routes";
+import { initSocketIO } from "./sockets";
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO engine
+const io = initSocketIO(httpServer);
 
 // Security and utility middlewares
 app.use(helmet());
@@ -25,6 +33,8 @@ app.get("/health", (_req: Request, res: Response) => {
 // API Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/listings", listingRoutes);
+app.use("/api/v1/rooms", roomRoutes);
+app.use("/api/v1/calls", callRoutes);
 
 // Global Error Handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -45,9 +55,10 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 const PORT = env.PORT;
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
-    console.log(`LandConnect server is running on http://localhost:${PORT}`);
+  httpServer.listen(PORT, () => {
+    console.log(`LandConnect server with Socket.IO is running on http://localhost:${PORT}`);
   });
 }
 
+export { app, httpServer, io };
 export default app;
