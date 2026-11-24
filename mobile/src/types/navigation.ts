@@ -18,4 +18,8 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;
+  ListingDetail: { listingId: string };
+  CreateListing: undefined;
+  MyListings: undefined;
+  ChatRoom: { roomId: string; title?: string };
 };

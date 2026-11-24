@@ -1,96 +1,109 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 import { MainTabParamList } from "../types/navigation";
-import { useAuthStore } from "../store/useAuthStore";
+import { CommunityScreen } from "../screens/main/CommunityScreen";
+import { MapTabScreen } from "../screens/main/MapTabScreen";
+import { ProfileScreen } from "../screens/main/ProfileScreen";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const CommunityScreen = () => (
+const ChatsPlaceholderScreen = () => (
   <View style={styles.screen}>
-    <Text style={styles.title}>🏡 Community & Land Feed</Text>
-    <Text style={styles.subtitle}>Verified land plots from sellers and brokers.</Text>
-  </View>
-);
-
-const MapScreen = () => (
-  <View style={styles.screen}>
-    <Text style={styles.title}>🗺️ Interactive OpenStreetMap</Text>
-    <Text style={styles.subtitle}>Explore plot locations, boundaries, and GPS coordinates.</Text>
-  </View>
-);
-
-const ChatsScreen = () => (
-  <View style={styles.screen}>
-    <Text style={styles.title}>💬 Chats & Meeting Rooms</Text>
+    <Ionicons name="chatbubbles" size={44} color="#1b5e20" />
+    <Text style={styles.title}>Chats & Meeting Rooms</Text>
     <Text style={styles.subtitle}>Direct inquiries and 3-way broker negotiations.</Text>
   </View>
 );
 
-const CallsScreen = () => (
+const CallsPlaceholderScreen = () => (
   <View style={styles.screen}>
-    <Text style={styles.title}>📞 In-App Calls</Text>
-    <Text style={styles.subtitle}>Zero-PII audio and video calls powered by ZegoCloud.</Text>
+    <Ionicons name="call" size={44} color="#1b5e20" />
+    <Text style={styles.title}>In-App Audio & Video Calls</Text>
+    <Text style={styles.subtitle}>Zero-PII calls powered by ZegoCloud.</Text>
   </View>
 );
-
-const ProfileScreen = () => {
-  const { user, role, logout } = useAuthStore();
-
-  return (
-    <View style={styles.screen}>
-      <View style={styles.profileCard}>
-        <Text style={styles.profileName}>{user?.full_name || "LandConnect User"}</Text>
-        <Text style={styles.profileEmail}>{user?.email}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>ROLE: {role?.toUpperCase()}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
 
 export const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       initialRouteName="Community"
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerStyle: { backgroundColor: "#1b5e20" },
         headerTintColor: "#fff",
-        headerTitleStyle: { fontWeight: "bold" },
+        headerTitleStyle: { fontWeight: "bold", fontSize: 18 },
         tabBarActiveTintColor: "#1b5e20",
-        tabBarInactiveTintColor: "#888",
-        tabBarStyle: { paddingBottom: 5, height: 60 },
-      }}
+        tabBarInactiveTintColor: "#6b7280",
+        tabBarStyle: {
+          paddingBottom: 6,
+          paddingTop: 6,
+          height: 62,
+          backgroundColor: "#ffffff",
+          borderTopColor: "#e5e7eb",
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+        },
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = "home";
+
+          if (route.name === "Community") {
+            iconName = focused ? "business" : "business-outline";
+          } else if (route.name === "Map") {
+            iconName = focused ? "map" : "map-outline";
+          } else if (route.name === "Chats") {
+            iconName = focused ? "chatbubbles" : "chatbubbles-outline";
+          } else if (route.name === "Calls") {
+            iconName = focused ? "call" : "call-outline";
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
       <Tab.Screen
         name="Community"
         component={CommunityScreen}
-        options={{ tabBarLabel: "Community" }}
+        options={{
+          title: "LandConnect Community",
+          tabBarLabel: "Explore",
+        }}
       />
       <Tab.Screen
         name="Map"
-        component={MapScreen}
-        options={{ tabBarLabel: "Map" }}
+        component={MapTabScreen}
+        options={{
+          title: "Land Plots Map",
+          tabBarLabel: "Map",
+        }}
       />
       <Tab.Screen
         name="Chats"
-        component={ChatsScreen}
-        options={{ tabBarLabel: "Chats" }}
+        component={ChatsPlaceholderScreen}
+        options={{
+          title: "Messages & Rooms",
+          tabBarLabel: "Chats",
+        }}
       />
       <Tab.Screen
         name="Calls"
-        component={CallsScreen}
-        options={{ tabBarLabel: "Calls" }}
+        component={CallsPlaceholderScreen}
+        options={{
+          title: "Calls History",
+          tabBarLabel: "Calls",
+        }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{ tabBarLabel: "Profile" }}
+        options={{
+          title: "My Profile",
+          tabBarLabel: "Profile",
+        }}
       />
     </Tab.Navigator>
   );
@@ -101,64 +114,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
     backgroundColor: "#f9fafb",
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#1b5e20",
-    marginBottom: 8,
+    marginTop: 12,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666",
+    marginTop: 6,
     textAlign: "center",
-  },
-  profileCard: {
-    backgroundColor: "#fff",
-    padding: 24,
-    borderRadius: 16,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#222",
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 4,
-  },
-  badge: {
-    backgroundColor: "#e8f5e9",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  badgeText: {
-    color: "#1b5e20",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  logoutBtn: {
-    backgroundColor: "#c62828",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  logoutText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
   },
 });
