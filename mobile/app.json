@@ -11,9 +11,16 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1b5e20"
+        "backgroundColor": "#0B2B26"
       },
-      "package": "com.landconnect.app"
+      "package": "com.landconnect.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-asset",

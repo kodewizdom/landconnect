@@ -2,11 +2,12 @@
   "name": "landconnect-server",
   "version": "1.0.0",
   "description": "Backend API and real-time signaling for LandConnect",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts"

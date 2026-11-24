@@ -12,6 +12,8 @@ import Constants from "expo-constants";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useSocket } from "../../context/SocketContext";
+import { useAuthStore } from "../../store/useAuthStore";
+import { callApi, ZegoTokenResponse } from "../../api/call.api";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CallScreen">;
 
@@ -28,6 +30,8 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   } = route.params;
 
   const { socket } = useSocket();
+  const { user: currentUser } = useAuthStore();
+  const [zegoTokenData, setZegoTokenData] = useState<ZegoTokenResponse | null>(null);
 
   const [callId, setCallId] = useState<string | undefined>(initialCallId);
   const [callStatus, setCallStatus] = useState<
@@ -40,6 +44,25 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === "video");
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch ZegoCloud Token04 from backend
+  useEffect(() => {
+    let isMounted = true;
+    const fetchToken = async () => {
+      try {
+        const tokenRes = await callApi.getToken(roomId);
+        if (isMounted) {
+          setZegoTokenData(tokenRes);
+        }
+      } catch (err: any) {
+        console.warn("[ZegoCloud] Token fetch warning:", err?.message || err);
+      }
+    };
+    fetchToken();
+    return () => {
+      isMounted = false;
+    };
+  }, [roomId]);
 
   const counterpartName = isIncoming
     ? callerName || "LandConnect Seller"
@@ -133,6 +156,41 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     const secs = totalSecs % 60;
     return `${mins < 10 ? "0" : ""}${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
+  // In native EAS APK build (!isExpoGo) with native ZegoCloud module available
+  let ZegoUIKitPrebuiltCallComponent: any = null;
+  if (!isExpoGo) {
+    try {
+      // Dynamically load Zego UIKit when in native APK build
+      const zegoModule = require("@zegocloud/zego-uikit-prebuilt-call-rn");
+      ZegoUIKitPrebuiltCallComponent = zegoModule.ZegoUIKitPrebuiltCall;
+    } catch {
+      // Handled gracefully when running in Expo Go or non-native environment
+    }
+  }
+
+  // Render real native ZegoCloud call view when running in an EAS APK build
+  if (!isExpoGo && ZegoUIKitPrebuiltCallComponent && zegoTokenData) {
+    const appId = Number(process.env.EXPO_PUBLIC_ZEGO_APP_ID) || zegoTokenData.appId;
+    return (
+      <View style={{ flex: 1, backgroundColor: "#0B2B26" }}>
+        <ZegoUIKitPrebuiltCallComponent
+          appID={appId}
+          appSign=""
+          token={zegoTokenData.token}
+          userID={currentUser?.id || "user"}
+          userName={currentUser?.full_name || "LandConnect User"}
+          callID={roomId}
+          config={{
+            onHangUp: handleEndCall,
+            turnOnCameraWhenJoining: callType === "video",
+            turnOnMicrophoneWhenJoining: true,
+            useSpeakerWhenJoining: true,
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
