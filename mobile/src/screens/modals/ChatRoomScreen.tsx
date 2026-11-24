@@ -54,6 +54,9 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
   const [selectedUserToAdd, setSelectedUserToAdd] = useState<UserSearchResult | null>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
 
+  // Header height for iOS keyboard offset
+  const headerHeight = 56 + insets.top;
+
   const flatListRef = useRef<FlatList<Message>>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -471,7 +474,6 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
             </Text>
 
             <Text
-              numberOfLines={1}
               style={[
                 styles.messageTimestamp,
                 isMe ? styles.timestampMe : styles.timestampOther,
@@ -489,7 +491,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 56 + insets.top : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? headerHeight : 0}
     >
       {/* Property Context Banner */}
       {roomDetails?.listing && (
@@ -541,9 +543,9 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
             paddingBottom:
               Platform.OS === "android"
                 ? keyboardHeight > 0
-                  ? keyboardHeight
-                  : insets.bottom || 8
-                : insets.bottom || 8,
+                  ? keyboardHeight + insets.bottom + 12
+                  : Math.max(insets.bottom, 12)
+                : Math.max(insets.bottom, 12),
           },
         ]}
       >
@@ -845,6 +847,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     alignSelf: "flex-end",
     flexShrink: 0,
+    minWidth: 64,
+    textAlign: "right",
     includeFontPadding: false,
   },
   timestampMe: {
