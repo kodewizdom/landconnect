@@ -16,6 +16,7 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   isLoading: boolean;
   error: string | null;
 
@@ -36,7 +37,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   refreshToken: null,
   isAuthenticated: false,
-  isLoading: true,
+  isInitialized: false,
+  isLoading: false,
   error: null,
 
   hydrateAuth: async () => {
@@ -53,13 +55,13 @@ export const useAuthStore = create<AuthState>((set) => ({
           accessToken: storedToken,
           refreshToken: storedRefreshToken,
           isAuthenticated: true,
-          isLoading: false,
+          isInitialized: true,
         });
       } else {
-        set({ isLoading: false });
+        set({ isInitialized: true });
       }
     } catch {
-      set({ isLoading: false });
+      set({ isInitialized: true });
     }
   },
 

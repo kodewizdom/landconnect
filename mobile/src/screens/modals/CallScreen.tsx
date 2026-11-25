@@ -19,7 +19,7 @@ import { RootStackParamList } from "../../types/navigation";
 import { useSocket } from "../../context/SocketContext";
 import { useAuthStore } from "../../store/useAuthStore";
 import { callApi } from "../../api/call.api";
-import { zegoService, ZegoRemoteStreamInfo } from "../../services/zego";
+import { zegoService, ZegoRemoteStreamInfo, AudioRouteKind } from "../../services/zego";
 import {
   requestCallPermissions,
   requestCameraPermission,
@@ -50,7 +50,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   } = route.params;
 
   const insets = useSafeAreaInsets();
-  const { socket } = useSocket();
+  const { socket, consumePendingCallError } = useSocket();
   const { user: currentUser } = useAuthStore();
 
   // Only show the simulated UI inside Expo Go
@@ -72,7 +72,9 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   // Active call controls state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(callType === "video");
+  const [audioRoute, setAudioRoute] = useState<AudioRouteKind>(
+    callType === "video" ? "speaker" : "earpiece"
+  );
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === "video");
   const [isFrontCamera, setIsFrontCamera] = useState(true);
 
@@ -83,6 +85,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   const boundRemoteTagsRef = useRef<Record<string, number>>({});
   const boundLocalPreviewTagRef = useRef<number | null>(null);
   const hasCleanedUpRef = useRef(false);
+  const hasStartedZegoRef = useRef(false);
 
   const counterpartName = isIncoming
     ? callerName || "LandConnect Member"
@@ -95,19 +98,20 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     .join("")
     .toUpperCase();
 
-  const stopDialtone = useCallback(() => {
+  const stopDialtone = useCallback(async () => {
     if (dialtonePlayerRef.current) {
-      try {
-        dialtonePlayerRef.current.pause();
-        dialtonePlayerRef.current.remove();
-      } catch {}
+      const player = dialtonePlayerRef.current;
       dialtonePlayerRef.current = null;
+      try {
+        player.pause();
+        player.remove();
+      } catch {}
     }
   }, []);
 
   const startDialtone = useCallback(async () => {
     if (isIncoming) return;
-    stopDialtone();
+    await stopDialtone();
     try {
       await setAudioModeAsync({
         playsInSilentMode: true,
@@ -123,9 +127,13 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   }, [isIncoming, stopDialtone]);
 
-  // Outgoing dialtone lifecycle
+  // Outgoing dialtone lifecycle (plays only while ringing before Zego VoIP starts)
   useEffect(() => {
-    if (!isIncoming && (callStatus === "calling" || callStatus === "ringing") && remoteStreams.length === 0) {
+    if (
+      !isIncoming &&
+      (callStatus === "calling" || callStatus === "ringing") &&
+      remoteStreams.length === 0
+    ) {
       startDialtone();
     } else {
       stopDialtone();
@@ -136,9 +144,12 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     };
   }, [isIncoming, callStatus, remoteStreams.length, startDialtone, stopDialtone]);
 
-  // Native ZegoCloud Engine startup (standalone EAS APK builds only)
+  // Native ZegoCloud Engine startup (after expo-audio dialtone/ringtone is fully unloaded)
   const startZegoEngine = useCallback(async () => {
     if (isExpoGo) return;
+
+    // Guarantee expo-audio media players are stopped and unloaded before Zego acquires VoIP audio focus
+    await stopDialtone();
 
     setZegoError(null);
     setEnginePhase("initializing");
@@ -163,7 +174,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
 
       setEnginePhase("connecting_room");
 
-      await zegoService.initAndJoinRoom({
+      const joinResult = await zegoService.initAndJoinRoom({
         appId: effectiveAppId,
         roomId: targetRoomId,
         userId: currentUser?.id || tokenRes.userId || "user",
@@ -238,6 +249,9 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
               });
             }
           },
+          onAudioRouteChange: (route) => {
+            setAudioRoute(route);
+          },
           onDebugError: (errorCode, funcName, info) => {
             if (errorCode !== 0) {
               console.warn(`[Zego debugError] ${funcName} (${errorCode}): ${info}`);
@@ -246,6 +260,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
         },
       });
 
+      setAudioRoute(joinResult.initialAudioRoute);
       setEnginePhase((prev) =>
         prev === "connected" ? "connected" : "waiting_stream"
       );
@@ -269,10 +284,31 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [isExpoGo, callType, roomId, currentUser?.id, currentUser?.full_name, stopDialtone]);
 
   useEffect(() => {
-    if (!isExpoGo) {
-      startZegoEngine();
+    const earlyFailure = consumePendingCallError();
+    if (earlyFailure) {
+      hasCleanedUpRef.current = true;
+      stopDialtone();
+      Alert.alert("Call Failed", earlyFailure, [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
+      return;
     }
 
+    if (!isExpoGo && (isIncoming || callStatus === "connected") && !hasStartedZegoRef.current) {
+      hasStartedZegoRef.current = true;
+      startZegoEngine();
+    }
+  }, [
+    consumePendingCallError,
+    isExpoGo,
+    isIncoming,
+    callStatus,
+    navigation,
+    startZegoEngine,
+    stopDialtone,
+  ]);
+
+  useEffect(() => {
     return () => {
       if (!hasCleanedUpRef.current) {
         hasCleanedUpRef.current = true;
@@ -282,7 +318,7 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
         }
       }
     };
-  }, [isExpoGo, startZegoEngine, stopDialtone]);
+  }, [isExpoGo, stopDialtone]);
 
   // Socket event listeners for signaling
   useEffect(() => {
@@ -426,15 +462,35 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const handleToggleSpeaker = async () => {
-    const next = !isSpeakerOn;
-    setIsSpeakerOn(next);
-    if (!isExpoGo) {
-      try {
-        await zegoService.setSpeakerEnabled(next);
-      } catch (err: any) {
-        Alert.alert("Audio Route Error", err?.message || "Failed to switch speaker.");
-      }
+  const handleToggleAudioRoute = async () => {
+    const nextSpeaker = audioRoute !== "speaker";
+    if (isExpoGo) {
+      setAudioRoute(nextSpeaker ? "speaker" : "earpiece");
+      return;
+    }
+    try {
+      await zegoService.setSpeakerEnabled(nextSpeaker);
+      const actualRoute = await zegoService.getCurrentAudioRoute();
+      setAudioRoute(actualRoute);
+    } catch (err: any) {
+      Alert.alert("Audio Route Error", err?.message || "Failed to switch audio route.");
+    }
+  };
+
+  const getAudioRouteButtonMeta = (): {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    active: boolean;
+  } => {
+    switch (audioRoute) {
+      case "bluetooth":
+        return { icon: "bluetooth", label: "Bluetooth", active: true };
+      case "headset":
+        return { icon: "headset", label: "Headset", active: true };
+      case "speaker":
+        return { icon: "volume-high", label: "Speaker", active: true };
+      default:
+        return { icon: "volume-medium", label: "Earpiece", active: false };
     }
   };
 
@@ -463,6 +519,10 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
       if (callStatus === "ringing") return "Ringing...";
       if (callStatus === "connected") return `Connected - ${formatTimer(elapsedSeconds)}`;
       return "Call Ended";
+    }
+
+    if (!isIncoming && (callStatus === "calling" || callStatus === "ringing")) {
+      return callStatus === "calling" ? "Calling..." : "Ringing...";
     }
 
     if (zegoError) return "Connection Issue";
@@ -645,22 +705,24 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
             <Text style={styles.controlLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.controlBtn, !isVideoEnabled && styles.controlBtnActive]}
-            onPress={handleToggleVideo}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isVideoEnabled ? "videocam" : "videocam-off"}
-              size={24}
-              color="#ffffff"
-            />
-            <Text style={styles.controlLabel}>
-              {isVideoEnabled ? "Camera Off" : "Camera On"}
-            </Text>
-          </TouchableOpacity>
+          {callType === "video" && (
+            <TouchableOpacity
+              style={[styles.controlBtn, !isVideoEnabled && styles.controlBtnActive]}
+              onPress={handleToggleVideo}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isVideoEnabled ? "videocam" : "videocam-off"}
+                size={24}
+                color="#ffffff"
+              />
+              <Text style={styles.controlLabel}>
+                {isVideoEnabled ? "Camera Off" : "Camera On"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
-          {isVideoEnabled && (
+          {callType === "video" && isVideoEnabled && (
             <TouchableOpacity
               style={styles.controlBtn}
               onPress={handleFlipCamera}
@@ -671,20 +733,23 @@ export const CallScreen: React.FC<Props> = ({ route, navigation }) => {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={[styles.controlBtn, isSpeakerOn && styles.controlBtnActive]}
-            onPress={handleToggleSpeaker}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isSpeakerOn ? "volume-high" : "volume-medium"}
-              size={24}
-              color="#ffffff"
-            />
-            <Text style={styles.controlLabel}>
-              {isSpeakerOn ? "Speaker" : "Earpiece"}
-            </Text>
-          </TouchableOpacity>
+          {(() => {
+            const routeMeta = getAudioRouteButtonMeta();
+            return (
+              <TouchableOpacity
+                style={[styles.controlBtn, routeMeta.active && styles.controlBtnActive]}
+                onPress={handleToggleAudioRoute}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={routeMeta.icon}
+                  size={24}
+                  color="#ffffff"
+                />
+                <Text style={styles.controlLabel}>{routeMeta.label}</Text>
+              </TouchableOpacity>
+            );
+          })()}
         </View>
 
         {/* End Call Button */}

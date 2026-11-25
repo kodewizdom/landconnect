@@ -15,6 +15,7 @@ import {
   Dimensions,
   Platform,
   Vibration,
+  AppState,
 } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,6 +60,7 @@ interface SocketContextValue {
   isConnected: boolean;
   incomingCall: IncomingCallData | null;
   clearIncomingCall: () => void;
+  consumePendingCallError: () => string | null;
 }
 
 const SocketContext = createContext<SocketContextValue>({
@@ -66,6 +68,7 @@ const SocketContext = createContext<SocketContextValue>({
   isConnected: false,
   incomingCall: null,
   clearIncomingCall: () => {},
+  consumePendingCallError: () => null,
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -78,7 +81,7 @@ const RINGTONE_ASSET = require("../../assets/sounds/ringtone.wav");
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user, accessToken } = useAuthStore();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
@@ -86,6 +89,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   const socketRef = useRef<Socket | null>(null);
   const ringtonePlayerRef = useRef<AudioPlayer | null>(null);
   const activeNotificationIdRef = useRef<string | null>(null);
+  const handledNotificationIdsRef = useRef<Set<string>>(new Set());
+  const pendingCallErrorRef = useRef<{ reason: string; at: number } | null>(null);
+
+  const consumePendingCallError = useCallback((): string | null => {
+    const entry = pendingCallErrorRef.current;
+    pendingCallErrorRef.current = null;
+    if (!entry) return null;
+    if (Date.now() - entry.at <= 4000) {
+      return entry.reason;
+    }
+    return null;
+  }, []);
 
   const stopIncomingAlert = useCallback(async () => {
     try {
@@ -93,11 +108,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {}
 
     if (ringtonePlayerRef.current) {
-      try {
-        ringtonePlayerRef.current.pause();
-        ringtonePlayerRef.current.remove();
-      } catch {}
+      const player = ringtonePlayerRef.current;
       ringtonePlayerRef.current = null;
+      try {
+        player.pause();
+        player.remove();
+      } catch {}
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: false,
+          shouldPlayInBackground: false,
+          interruptionMode: "mixWithOthers",
+        });
+      } catch {}
     }
 
     if (activeNotificationIdRef.current) {
@@ -148,9 +171,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
             sound: "ringtone.wav",
             priority: Notifications.AndroidNotificationPriority.MAX,
             data: {
+              type: "incoming_call",
               callId: data.callId,
               roomId: data.roomId || "",
               callType: data.callType,
+              caller: data.caller,
             },
           },
           trigger:
@@ -171,7 +196,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
     setIncomingCall(null);
   }, [stopIncomingAlert]);
 
-  // Configure Android Notification Channel & request POST_NOTIFICATIONS on login
+  // Configure notification channel + tap recovery when app is minimized or killed
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -192,15 +217,81 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
           console.warn("[Notifications] Channel setup warning:", err);
         }
       }
+
+      try {
+        const lastResponse = await Notifications.getLastNotificationResponseAsync();
+        if (lastResponse) {
+          handleNotificationResponse(lastResponse);
+        }
+      } catch (err) {
+        console.warn("[Notifications] getLastNotificationResponseAsync warning:", err);
+      }
+    };
+
+    const handleNotificationResponse = (
+      response: Notifications.NotificationResponse
+    ) => {
+      const notifId = response?.notification?.request?.identifier;
+      if (notifId && handledNotificationIdsRef.current.has(notifId)) {
+        return;
+      }
+
+      const rawData = response?.notification?.request?.content?.data as
+        | {
+            type?: string;
+            callId?: string;
+            roomId?: string;
+            callType?: CallType;
+            caller?: MaskedUser;
+          }
+        | undefined;
+
+      if (!rawData?.callId || !rawData?.caller) {
+        return;
+      }
+
+      if (notifId) {
+        handledNotificationIdsRef.current.add(notifId);
+      }
+
+      setIncomingCall({
+        callId: rawData.callId,
+        roomId: rawData.roomId || undefined,
+        callType: rawData.callType === "video" ? "video" : "audio",
+        caller: rawData.caller,
+      });
     };
 
     setupNotifications();
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener(
+      handleNotificationResponse
+    );
+
+    return () => {
+      responseSub.remove();
+    };
+  }, [isAuthenticated]);
+
+  // Reconnect Socket.IO automatically when returning to foreground from minimized state
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && socketRef.current && !socketRef.current.connected) {
+        socketRef.current.connect();
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.id) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -209,11 +300,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       setSocket(null);
       setIsConnected(false);
       setIncomingCall(null);
+      pendingCallErrorRef.current = null;
       return;
     }
 
     const initSocket = async () => {
-      const token = await storage.getItem("landconnect_access_token");
+      // Ensure any stale socket from an earlier account or token is cleanly closed first
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
+
+      const token = accessToken || (await storage.getItem("landconnect_access_token"));
       if (!token || !isMounted) return;
 
       const defaultUrl = process.env.EXPO_PUBLIC_API_URL
@@ -242,6 +342,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!isMounted) return;
         setIncomingCall(data);
         startIncomingAlert(data);
+      });
+
+      newSocket.on("call:failed", (data: { reason?: string }) => {
+        pendingCallErrorRef.current = {
+          reason: data?.reason || "Unable to connect call.",
+          at: Date.now(),
+        };
       });
 
       const handleDismissIncoming = (data: { callId?: string }) => {
@@ -274,7 +381,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         socketRef.current = null;
       }
     };
-  }, [isAuthenticated, startIncomingAlert, stopIncomingAlert]);
+  }, [isAuthenticated, user?.id, accessToken, startIncomingAlert, stopIncomingAlert]);
 
   const handleAcceptCall = async () => {
     if (!incomingCall) return;
@@ -326,6 +433,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         isConnected,
         incomingCall,
         clearIncomingCall,
+        consumePendingCallError,
       }}
     >
       {children}

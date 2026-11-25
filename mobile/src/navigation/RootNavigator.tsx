@@ -14,13 +14,13 @@ import { CallScreen } from "../screens/modals/CallScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, hydrateAuth } = useAuthStore();
+  const { isAuthenticated, isInitialized, hydrateAuth } = useAuthStore();
 
   useEffect(() => {
     hydrateAuth();
   }, [hydrateAuth]);
 
-  if (isLoading) {
+  if (!isInitialized) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#C5A059" />

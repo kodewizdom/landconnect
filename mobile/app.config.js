@@ -5,6 +5,7 @@ module.exports = {
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
+    backgroundColor: "#071F19",
     userInterfaceStyle: "light",
     splash: {
       image: "./assets/splash-icon.png",
@@ -42,6 +43,19 @@ module.exports = {
     plugins: [
       "expo-asset",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          backgroundColor: "#071F19",
+          image: "./assets/splash-icon.png",
+          imageWidth: 200,
+          resizeMode: "contain",
+          dark: {
+            backgroundColor: "#071F19",
+            image: "./assets/splash-icon.png",
+          },
+        },
+      ],
       [
         "expo-audio",
         {

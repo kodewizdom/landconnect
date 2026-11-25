@@ -3,17 +3,112 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { CallType, CallStatus, User, CallPermission } from "@prisma/client";
 import { verifyAccessToken } from "../utils/jwt";
 import prisma from "../config/prisma";
-import { maskUser } from "../utils/piiMask";
+import { maskUser, MaskedUser } from "../utils/piiMask";
 
 interface SocketData {
   userId: string;
   user: User;
 }
 
+interface IncomingCallPayload {
+  callId: string;
+  caller: MaskedUser;
+  callType: CallType;
+  roomId: string | null;
+}
+
+interface PendingCallEntry {
+  callId: string;
+  callerId: string;
+  targetUserId: string;
+  incomingPayload: IncomingCallPayload;
+  expiresAt: number;
+  timer: NodeJS.Timeout;
+}
+
+const PENDING_CALL_TTL_MS = 45_000;
+
 let ioInstance: SocketIOServer | null = null;
+const onlineUsers = new Map<string, Set<string>>();
+const pendingCalls = new Map<string, PendingCallEntry>();
 
 export function getIO(): SocketIOServer | null {
   return ioInstance;
+}
+
+function addOnlineSocket(userId: string, socketId: string): void {
+  let sockets = onlineUsers.get(userId);
+  if (!sockets) {
+    sockets = new Set<string>();
+    onlineUsers.set(userId, sockets);
+  }
+  sockets.add(socketId);
+}
+
+function removeOnlineSocket(userId: string, socketId: string): void {
+  const sockets = onlineUsers.get(userId);
+  if (!sockets) return;
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    onlineUsers.delete(userId);
+  }
+}
+
+function emitToUser(
+  io: SocketIOServer,
+  userId: string,
+  event: string,
+  payload: unknown
+): number {
+  const sockets = onlineUsers.get(userId);
+  if (!sockets || sockets.size === 0) {
+    return 0;
+  }
+  let delivered = 0;
+  sockets.forEach((sid) => {
+    io.to(sid).emit(event, payload);
+    delivered += 1;
+  });
+  return delivered;
+}
+
+function clearPendingCallById(callId: string): void {
+  for (const [uid, entry] of pendingCalls.entries()) {
+    if (entry.callId === callId) {
+      clearTimeout(entry.timer);
+      pendingCalls.delete(uid);
+    }
+  }
+}
+
+function storePendingCall(
+  targetUserId: string,
+  callId: string,
+  callerId: string,
+  incomingPayload: IncomingCallPayload
+): void {
+  const existing = pendingCalls.get(targetUserId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    pendingCalls.delete(targetUserId);
+  }
+
+  const expiresAt = Date.now() + PENDING_CALL_TTL_MS;
+  const timer = setTimeout(() => {
+    const current = pendingCalls.get(targetUserId);
+    if (current && current.callId === callId) {
+      pendingCalls.delete(targetUserId);
+    }
+  }, PENDING_CALL_TTL_MS);
+
+  pendingCalls.set(targetUserId, {
+    callId,
+    callerId,
+    targetUserId,
+    incomingPayload,
+    expiresAt,
+    timer,
+  });
 }
 
 export function initSocketIO(httpServer: HttpServer): SocketIOServer {
@@ -65,10 +160,26 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
   io.on("connection", (socket: Socket) => {
     const { userId, user } = socket.data as SocketData;
 
-    // Join personal notification channel for incoming calls and room notifications
+    // Track every active socket ID per user and join personal notification room
+    addOnlineSocket(userId, socket.id);
     const userChannel = `user:${userId}`;
     socket.join(userChannel);
-    console.log(`[Socket.IO] User ${user.email} (${userId}) connected on channel ${userChannel}`);
+    console.log(
+      `[Socket.IO] User ${user.email} (${userId}) connected (${socket.id}); active sockets=${
+        onlineUsers.get(userId)?.size || 0
+      }`
+    );
+
+    // Re-emit any active ringing call so minimized/reopened clients catch incoming calls right away
+    const pendingForUser = pendingCalls.get(userId);
+    if (pendingForUser) {
+      if (Date.now() < pendingForUser.expiresAt) {
+        socket.emit("call:incoming", pendingForUser.incomingPayload);
+      } else {
+        clearTimeout(pendingForUser.timer);
+        pendingCalls.delete(userId);
+      }
+    }
 
     // --- Chat Events ---
 
@@ -143,13 +254,13 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           // Broadcast message:new to everyone currently in the room
           io.to(`room:${roomId}`).emit("message:new", messagePayload);
 
-          // Also broadcast to each participant's user channel so their room list updates in real time
+          // Broadcast to every active socket of each participant so their room list updates in real time
           const participants = await prisma.roomParticipant.findMany({
             where: { room_id: roomId },
             select: { user_id: true },
           });
           participants.forEach((p) => {
-            io.to(`user:${p.user_id}`).emit("message:new", messagePayload);
+            emitToUser(io, p.user_id, "message:new", messagePayload);
           });
         } catch (err) {
           console.error(`[Socket.IO] Error in message:send:`, err);
@@ -185,25 +296,29 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         callType: "audio" | "video";
       }) => {
         try {
-          const { receiverId, roomId, callType } = data;
+          const { receiverId, roomId, callType } = data || {};
+
+          if (!receiverId) {
+            socket.emit("call:failed", { reason: "Callee ID is required." });
+            return;
+          }
 
           const callee = await prisma.user.findUnique({
             where: { id: receiverId },
           });
 
           if (!callee) {
-            socket.emit("call:failed", { reason: "Callee not found" });
+            socket.emit("call:failed", { reason: "Callee not found." });
             return;
           }
 
           // Privacy check: allow_calls_from
           if (callee.allow_calls_from === CallPermission.none) {
-            socket.emit("call:failed", { reason: "User does not accept incoming calls" });
+            socket.emit("call:failed", { reason: "User does not accept incoming calls." });
             return;
           }
 
           if (callee.allow_calls_from === CallPermission.contacts) {
-            // Check if they share any common room
             const sharedRoom = await prisma.roomParticipant.findFirst({
               where: {
                 user_id: userId,
@@ -217,10 +332,36 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
 
             if (!sharedRoom) {
               socket.emit("call:failed", {
-                reason: "User only accepts calls from existing contacts/rooms",
+                reason: "User only accepts calls from existing contacts or negotiation rooms.",
               });
               return;
             }
+          }
+
+          // Determine all recipients (handles both 1-on-1 direct & 3-way group meetings)
+          let notifyUserIds: string[] = [receiverId];
+          if (roomId) {
+            const roomParticipants = await prisma.roomParticipant.findMany({
+              where: { room_id: roomId, user_id: { not: userId } },
+              select: { user_id: true },
+            });
+            if (roomParticipants.length > 0) {
+              notifyUserIds = Array.from(
+                new Set([receiverId, ...roomParticipants.map((p) => p.user_id)])
+              );
+            }
+          }
+
+          // Fail clearly if no target recipient currently has an active socket
+          const hasAnyOnlineRecipient = notifyUserIds.some(
+            (targetId) => (onlineUsers.get(targetId)?.size || 0) > 0
+          );
+
+          if (!hasAnyOnlineRecipient) {
+            socket.emit("call:failed", {
+              reason: `${callee.full_name} is currently offline or has the app closed.`,
+            });
+            return;
           }
 
           // Persist call log with status ringing
@@ -238,33 +379,20 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
             },
           });
 
-          // Determine all recipients (handles both 1-on-1 direct & 3-way group meetings)
-          let notifyUserIds: string[] = [receiverId];
-          if (roomId) {
-            const roomParticipants = await prisma.roomParticipant.findMany({
-              where: { room_id: roomId, user_id: { not: userId } },
-              select: { user_id: true },
-            });
-            if (roomParticipants.length > 0) {
-              notifyUserIds = Array.from(
-                new Set([receiverId, ...roomParticipants.map((p) => p.user_id)])
-              );
-            }
-          }
-
-          // Send incoming call alert to all target recipients' personal channels
-          const incomingPayload = {
+          const incomingPayload: IncomingCallPayload = {
             callId: callLog.id,
             caller: maskUser(callLog.caller),
             callType: callLog.call_type,
             roomId: callLog.room_id,
           };
 
+          // Cache pending ringing call (45s TTL) & emit to every active socket of each recipient
           notifyUserIds.forEach((targetId) => {
-            io.to(`user:${targetId}`).emit("call:incoming", incomingPayload);
+            storePendingCall(targetId, callLog.id, userId, incomingPayload);
+            emitToUser(io, targetId, "call:incoming", incomingPayload);
           });
 
-          // Notify caller of initiation
+          // Notify caller of initiation across their active sockets
           socket.emit("call:initiated", {
             callId: callLog.id,
             roomId: callLog.room_id,
@@ -272,7 +400,7 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           });
         } catch (err) {
           console.error(`[Socket.IO] Error in call:initiate:`, err);
-          socket.emit("call:failed", { reason: "Failed to initiate call" });
+          socket.emit("call:failed", { reason: "Failed to initiate call." });
         }
       }
     );
@@ -280,7 +408,8 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
     // Accept Call
     socket.on("call:accept", async (data: { callId: string }) => {
       try {
-        const { callId } = data;
+        const { callId } = data || {};
+        if (!callId) return;
 
         const callLog = await prisma.callLog.findUnique({
           where: { id: callId },
@@ -291,21 +420,23 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           return;
         }
 
+        clearPendingCallById(callId);
+
         const updatedCall = await prisma.callLog.update({
           where: { id: callId },
           data: { status: CallStatus.connected },
         });
 
-        // Notify both parties of call connection
-        io.to(`user:${updatedCall.caller_id}`).emit("call:accepted", {
+        const acceptedPayload = {
           callId: updatedCall.id,
           roomId: updatedCall.room_id,
-        });
+        };
 
-        socket.emit("call:accepted", {
-          callId: updatedCall.id,
-          roomId: updatedCall.room_id,
-        });
+        emitToUser(io, updatedCall.caller_id, "call:accepted", acceptedPayload);
+        emitToUser(io, updatedCall.receiver_id, "call:accepted", acceptedPayload);
+        if (updatedCall.receiver_id !== userId) {
+          emitToUser(io, userId, "call:accepted", acceptedPayload);
+        }
       } catch (err) {
         console.error(`[Socket.IO] Error in call:accept:`, err);
       }
@@ -314,13 +445,16 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
     // Reject Call
     socket.on("call:reject", async (data: { callId: string }) => {
       try {
-        const { callId } = data;
+        const { callId } = data || {};
+        if (!callId) return;
 
         const callLog = await prisma.callLog.findUnique({
           where: { id: callId },
         });
 
         if (!callLog) return;
+
+        clearPendingCallById(callId);
 
         await prisma.callLog.update({
           where: { id: callId },
@@ -330,7 +464,10 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           },
         });
 
-        io.to(`user:${callLog.caller_id}`).emit("call:rejected", {
+        emitToUser(io, callLog.caller_id, "call:rejected", {
+          callId: callLog.id,
+        });
+        emitToUser(io, callLog.receiver_id, "call:rejected", {
           callId: callLog.id,
         });
       } catch (err) {
@@ -361,6 +498,8 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
 
         if (!callLog) return;
 
+        clearPendingCallById(callLog.id);
+
         const wasRinging = callLog.status === CallStatus.ringing;
         const endedAt = new Date();
         const durationSeconds = wasRinging
@@ -372,7 +511,10 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         await prisma.callLog.update({
           where: { id: callLog.id },
           data: {
-            status: wasRinging && callLog.caller_id === userId ? CallStatus.missed : CallStatus.ended,
+            status:
+              wasRinging && callLog.caller_id === userId
+                ? CallStatus.missed
+                : CallStatus.ended,
             ended_at: endedAt,
           },
         });
@@ -399,9 +541,9 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         }
 
         targetUserIds.forEach((uid) => {
-          io.to(`user:${uid}`).emit("call:ended", endPayload);
+          emitToUser(io, uid, "call:ended", endPayload);
           if (wasRinging) {
-            io.to(`user:${uid}`).emit("call:cancelled", endPayload);
+            emitToUser(io, uid, "call:cancelled", endPayload);
           }
         });
       } catch (err) {
@@ -413,7 +555,12 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
     socket.on("call:cancel", handleEndOrCancelCall);
 
     socket.on("disconnect", () => {
-      console.log(`[Socket.IO] User ${userId} disconnected`);
+      removeOnlineSocket(userId, socket.id);
+      console.log(
+        `[Socket.IO] Socket ${socket.id} for user ${userId} disconnected; remaining sockets=${
+          onlineUsers.get(userId)?.size || 0
+        }`
+      );
     });
   });
 

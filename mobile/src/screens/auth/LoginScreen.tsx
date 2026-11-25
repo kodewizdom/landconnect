@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,13 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { login, isLoading, error, clearError } = useAuthStore();
+
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      clearError();
+    });
+    return unsub;
+  }, [navigation, clearError]);
 
   const handleLogin = async (loginEmail?: string, loginPassword?: string) => {
     const targetEmail = loginEmail || email;
@@ -130,7 +137,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.forgotBtn}
-            onPress={() => navigation.navigate("ForgotPassword")}
+            onPress={() => {
+              clearError();
+              navigation.navigate("ForgotPassword");
+            }}
           >
             <Text style={styles.forgotBtnText}>Forgot password?</Text>
           </TouchableOpacity>
@@ -146,25 +156,17 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.primaryBtnText}>Log In</Text>
             )}
           </TouchableOpacity>
-
-          {/* Google Sign-In */}
-          <TouchableOpacity
-            style={styles.googleBtn}
-            onPress={() =>
-              Alert.alert(
-                "Google Sign-In",
-                "Google OAuth 2.0 flow is configured via google-auth-library on the backend."
-              )
-            }
-          >
-            <Text style={styles.googleBtnText}>Continue with Google</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>New member? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+          <TouchableOpacity
+            onPress={() => {
+              clearError();
+              navigation.navigate("Register");
+            }}
+          >
             <Text style={styles.footerLink}>Create Account</Text>
           </TouchableOpacity>
         </View>
@@ -303,20 +305,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.6,
-  },
-  googleBtn: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: "#E6E2D8",
-    paddingVertical: 13,
-    borderRadius: 10,
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  googleBtnText: {
-    color: "#636B69",
-    fontSize: 15,
-    fontWeight: "600",
   },
   footer: {
     flexDirection: "row",

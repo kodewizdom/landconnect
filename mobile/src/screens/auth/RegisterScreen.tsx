@@ -44,6 +44,13 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   } = useAuthStore();
 
   useEffect(() => {
+    const unsub = navigation.addListener("focus", () => {
+      clearError();
+    });
+    return unsub;
+  }, [navigation, clearError]);
+
+  useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
       setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
@@ -251,7 +258,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   }}
                   disabled={isLoading}
                 >
-                  <Text style={styles.secondaryLinkText}>Edit Details</Text>
+                  <Text style={styles.secondaryLinkText}>Change Email</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -276,7 +283,12 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+          <TouchableOpacity
+            onPress={() => {
+              clearError();
+              navigation.navigate("Login");
+            }}
+          >
             <Text style={styles.footerLink}>Log in</Text>
           </TouchableOpacity>
         </View>

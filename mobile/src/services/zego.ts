@@ -6,6 +6,8 @@ import type {
   ZegoTextureView as ZegoTextureViewType,
 } from "zego-express-engine-reactnative";
 
+export type AudioRouteKind = "bluetooth" | "headset" | "speaker" | "earpiece";
+
 export interface ZegoRemoteStreamInfo {
   streamID: string;
   userID: string;
@@ -34,6 +36,7 @@ export interface ZegoServiceCallbacks {
     state: number,
     errorCode: number
   ) => void;
+  onAudioRouteChange?: (route: AudioRouteKind, rawRoute: number) => void;
   onDebugError?: (errorCode: number, funcName: string, info: string) => void;
 }
 
@@ -55,6 +58,14 @@ interface ZegoRuntimeModule {
   };
   ZegoPublishChannel: {
     Main: number;
+  };
+  ZegoAudioRoute?: {
+    Speaker: number;
+    Headphone: number;
+    Bluetooth: number;
+    Receiver: number;
+    ExternalUSB: number;
+    AirPlay: number;
   };
 }
 
@@ -114,6 +125,41 @@ class ZegoService {
     return `stream_${this.sanitizeStreamPart(roomId)}_${this.sanitizeStreamPart(userId)}`;
   }
 
+  private mapAudioRoute(mod: ZegoRuntimeModule, rawRoute: number): AudioRouteKind {
+    const routes = mod.ZegoAudioRoute;
+    const bt = routes?.Bluetooth ?? 2;
+    const hp = routes?.Headphone ?? 1;
+    const usb = routes?.ExternalUSB ?? 4;
+    const airPlay = routes?.AirPlay ?? 5;
+    const spk = routes?.Speaker ?? 0;
+
+    if (rawRoute === bt) return "bluetooth";
+    if (rawRoute === hp || rawRoute === usb || rawRoute === airPlay) return "headset";
+    if (rawRoute === spk) return "speaker";
+    return "earpiece";
+  }
+
+  private isExternalRoute(mod: ZegoRuntimeModule, rawRoute: number): boolean {
+    const routes = mod.ZegoAudioRoute;
+    return (
+      rawRoute === (routes?.Bluetooth ?? 2) ||
+      rawRoute === (routes?.Headphone ?? 1) ||
+      rawRoute === (routes?.ExternalUSB ?? 4) ||
+      rawRoute === (routes?.AirPlay ?? 5)
+    );
+  }
+
+  public async getCurrentAudioRoute(): Promise<AudioRouteKind> {
+    if (!this.engine || !this.isInitialized) return "earpiece";
+    try {
+      const mod = loadZegoModule();
+      const rawRoute = Number(await this.engine.getAudioRouteType());
+      return this.mapAudioRoute(mod, rawRoute);
+    } catch {
+      return "earpiece";
+    }
+  }
+
   public async initAndJoinRoom(params: {
     appId: number;
     roomId: string;
@@ -122,7 +168,7 @@ class ZegoService {
     token: string;
     callType: "audio" | "video";
     callbacks?: ZegoServiceCallbacks;
-  }): Promise<{ localStreamId: string }> {
+  }): Promise<{ localStreamId: string; initialAudioRoute: AudioRouteKind }> {
     const { appId, roomId, userId, userName, token, callType, callbacks } = params;
 
     if (!appId || Number.isNaN(appId) || appId <= 0) {
@@ -191,6 +237,11 @@ class ZegoService {
       });
     }
 
+    engine.on("audioRouteChange", (route) => {
+      const rawRoute = Number(route);
+      callbacks?.onAudioRouteChange?.(this.mapAudioRoute(mod, rawRoute), rawRoute);
+    });
+
     // 3. Log into room with Zego Token04
     const roomConfig: ZegoRoomConfig = {
       maxMemberCount: 0,
@@ -212,9 +263,23 @@ class ZegoService {
       );
     }
 
-    // 4. Configure mic, speaker audio routing, and camera state
+    // 4. Configure mic, Bluetooth-aware audio routing, and camera state
     await engine.muteMicrophone(false);
-    await engine.setAudioRouteToSpeaker(callType === "video");
+    const rawInitialRoute = Number(await engine.getAudioRouteType());
+    let resolvedRouteKind = this.mapAudioRoute(mod, rawInitialRoute);
+
+    // Preserve Bluetooth/Headset routes automatically; only default built-in speaker on video calls
+    if (!this.isExternalRoute(mod, rawInitialRoute)) {
+      await engine.setAudioRouteToSpeaker(callType === "video");
+      try {
+        const postRawRoute = Number(await engine.getAudioRouteType());
+        resolvedRouteKind = this.mapAudioRoute(mod, postRawRoute);
+      } catch {
+        resolvedRouteKind = callType === "video" ? "speaker" : "earpiece";
+      }
+    }
+    callbacks?.onAudioRouteChange?.(resolvedRouteKind, rawInitialRoute);
+
     await engine.enableCamera(
       callType === "video",
       mod.ZegoPublishChannel.Main as any
@@ -232,7 +297,7 @@ class ZegoService {
       undefined
     );
 
-    return { localStreamId };
+    return { localStreamId, initialAudioRoute: resolvedRouteKind };
   }
 
   public async startLocalPreview(viewRef: any): Promise<boolean> {
@@ -371,6 +436,7 @@ class ZegoService {
         engineRef.off("roomStreamUpdate", undefined);
         engineRef.off("publisherStateUpdate", undefined);
         engineRef.off("playerStateUpdate", undefined);
+        engineRef.off("audioRouteChange", undefined);
         engineRef.off("debugError", undefined);
       } catch {}
 

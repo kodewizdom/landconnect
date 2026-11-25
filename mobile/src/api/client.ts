@@ -9,7 +9,7 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 15000,
+  timeout: 30000,
 });
 
 let isRefreshing = false;
@@ -48,8 +48,20 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+    const requestUrl = originalRequest?.url || "";
+    const isAuthEndpoint = requestUrl.includes("/auth/");
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isAuthEndpoint
+    ) {
+      const storedRefreshToken = await storage.getItem("landconnect_refresh_token");
+      if (!storedRefreshToken) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -67,14 +79,11 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const storedRefreshToken = await storage.getItem("landconnect_refresh_token");
-        if (!storedRefreshToken) {
-          throw new Error("No refresh token available");
-        }
-
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken: storedRefreshToken,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken: storedRefreshToken },
+          { timeout: 30000 }
+        );
 
         const { accessToken, refreshToken } = response.data;
 
