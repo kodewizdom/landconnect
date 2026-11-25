@@ -4,9 +4,38 @@ import { env } from "../config/env";
 interface SendEmailPayload {
   to: string;
   subject: string;
-  text: string;
+  text?: string;
   html: string;
   devOtpLog?: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function stripHtmlToPlainText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 class Mailer {
@@ -33,6 +62,8 @@ class Mailer {
    */
   async sendMail({ to, subject, text, html, devOtpLog }: SendEmailPayload): Promise<void> {
     const fromEmail = env.EMAIL_FROM || env.SMTP_USER || "no-reply@landconnect.com";
+    const resolvedText =
+      text && text.trim().length > 0 ? text.trim() : stripHtmlToPlainText(html);
 
     // Primary: Brevo Transactional HTTP API
     if (env.BREVO_API_KEY && !env.BREVO_API_KEY.startsWith("xkeysib-your")) {
@@ -44,11 +75,12 @@ class Mailer {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          sender: { name: "LandConnect Security", email: fromEmail },
+          sender: { name: "LandConnect", email: fromEmail },
+          replyTo: { email: fromEmail, name: "LandConnect" },
           to: [{ email: to }],
           subject,
           htmlContent: html,
-          textContent: text,
+          textContent: resolvedText,
         }),
       });
 
@@ -75,10 +107,11 @@ class Mailer {
 
     try {
       await transporter.sendMail({
-        from: `"LandConnect Security" <${fromEmail}>`,
+        from: `"LandConnect" <${fromEmail}>`,
+        replyTo: fromEmail,
         to,
         subject,
-        text,
+        text: resolvedText,
         html,
       });
       console.log(`[Mailer] Email sent via SMTP fallback to ${to}`);
@@ -92,35 +125,48 @@ class Mailer {
   }
 
   buildOtpTemplate(params: {
-    eyebrow: string;
-    heading: string;
+    greeting: string;
     bodyLine: string;
     otp: string;
-    expiryMinutes: number;
+    expiryMinutes?: number;
   }): { text: string; html: string } {
-    const { eyebrow, heading, bodyLine, otp, expiryMinutes } = params;
-    const text = `${heading}\n\n${bodyLine}\n\nYour 6-digit verification code: ${otp}\nThis code expires in ${expiryMinutes} minutes.\n\nIf you did not request this, you can safely ignore this email.`;
+    const expiryMinutes = params.expiryMinutes ?? 10;
+    const greeting = params.greeting.trim();
+    const bodyLine = params.bodyLine.trim();
+    const otp = params.otp.trim();
+
+    const text = [
+      greeting,
+      "",
+      bodyLine,
+      "",
+      `Verification code: ${otp}`,
+      "",
+      `This 6-digit code expires in ${expiryMinutes} minutes.`,
+      "If you did not request this email, you can safely ignore it.",
+      "",
+      "LandConnect Team",
+    ].join("\n");
+
+    const safeGreeting = escapeHtml(greeting);
+    const safeBodyLine = escapeHtml(bodyLine);
+    const safeOtp = escapeHtml(otp);
+
     const html = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #F8F7F4; padding: 24px; border-radius: 16px;">
-        <div style="background: #0B2B26; padding: 28px 24px; border-radius: 12px 12px 0 0; text-align: center;">
-          <div style="color: #C5A059; font-size: 22px; font-weight: 700; letter-spacing: 4px;">LANDCONNECT</div>
-          <div style="color: #A0A8A6; font-size: 11px; letter-spacing: 1.5px; margin-top: 4px; text-transform: uppercase;">${eyebrow}</div>
-        </div>
-        <div style="background: #FFFFFF; padding: 28px 24px; border-radius: 0 0 12px 12px; border: 1px solid #E6E2D8; border-top: none;">
-          <h2 style="color: #181C1B; font-size: 18px; margin: 0 0 12px 0;">${heading}</h2>
-          <p style="color: #636B69; font-size: 14px; line-height: 21px; margin: 0 0 24px 0;">${bodyLine}</p>
-          <div style="text-align: center; margin: 24px 0;">
-            <span style="display: inline-block; font-size: 30px; font-weight: 700; letter-spacing: 8px; padding: 14px 28px; background: #F5EDD8; color: #0B2B26; border-radius: 10px; border: 1.5px solid #C5A059;">
-              ${otp}
-            </span>
-          </div>
-          <p style="color: #636B69; font-size: 13px; margin: 0 0 16px 0;">This verification code expires in <strong>${expiryMinutes} minutes</strong>.</p>
-          <p style="color: #A0A8A6; font-size: 12px; margin: 20px 0 0 0; border-top: 1px solid #E6E2D8; padding-top: 14px;">
-            If you did not request this verification, please disregard this message. Zero personal contact details are ever shared publicly on LandConnect.
-          </p>
-        </div>
-      </div>
-    `;
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1f2937;line-height:1.5;">
+    <div style="max-width:500px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
+      <p style="margin:0 0 12px 0;font-size:15px;font-weight:600;color:#0b2b26;">LandConnect</p>
+      <p style="margin:0 0 12px 0;font-size:14px;color:#1f2937;">${safeGreeting}</p>
+      <p style="margin:0 0 18px 0;font-size:14px;color:#374151;">${safeBodyLine}</p>
+      <p style="margin:0 0 18px 0;padding:12px 16px;background-color:#f9fafb;border:1px solid #d1d5db;border-radius:6px;font-size:24px;font-weight:700;letter-spacing:6px;color:#111827;text-align:center;">${safeOtp}</p>
+      <p style="margin:0 0 10px 0;font-size:13px;color:#4b5563;">This 6-digit code expires in ${expiryMinutes} minutes.</p>
+      <p style="margin:0;font-size:13px;color:#6b7280;">If you did not request this email, you can safely ignore it.</p>
+    </div>
+  </body>
+</html>`.trim();
+
     return { text, html };
   }
 }

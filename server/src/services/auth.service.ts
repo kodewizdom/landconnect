@@ -347,7 +347,7 @@ export class AuthService {
   }
 
   /**
-   * Request password reset OTP (15-min expiry)
+   * Request password reset OTP (10-min expiry)
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
     const normalizedEmail = email.toLowerCase().trim();
@@ -361,7 +361,7 @@ export class AuthService {
 
     const otp = crypto.randomInt(100000, 999999).toString();
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await prisma.passwordResetToken.updateMany({
       where: {
