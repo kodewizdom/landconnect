@@ -74,6 +74,7 @@ module.exports = {
           },
         },
       ],
+      "./plugins/withAndroidBuildConfig",
     ],
     extra: {
       eas: {
