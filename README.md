@@ -1,102 +1,76 @@
-# LandConnect – Land Marketplace Mobile Application
+# LandConnect - Real Estate Land Marketplace Mobile Application
 
-A privacy-first, WhatsApp-inspired luxury mobile marketplace for **Buyers**, **Sellers**, and **Brokers** to discover land plots on an interactive map, negotiate in real-time via 1-on-1 chats and meeting rooms, and conduct encrypted in-app audio/video calls without ever exposing personal phone numbers or email addresses.
+A privacy-first, WhatsApp-inspired mobile marketplace for **Buyers**, **Owners (Sellers)**, and **Brokers** to discover UAE land plots on an interactive map, negotiate in real time via 1-on-1 chats and 3-way broker rooms, and place in-app audio and video calls without exposing personal phone numbers or email addresses[cite: 3, 5].
 
 ---
 
-## Submission Links
+## Submission Links & Documentation
 
-- **Live Backend API (Render)**: [https://landconnect-api.onrender.com](https://landconnect-api.onrender.com) *(Health check: [/health](https://landconnect-api.onrender.com/health))*
-- **Android APK Download**: [Download LandConnect APK](https://expo.dev/artifacts/eas/placeholder-apk-link) *(Built via Expo EAS)*
-- **Demo Video Walkthrough**: [Watch Video Demo](https://youtu.be/placeholder-demo-link) *(6-minute end-to-end walkthrough)*
-- **AI Usage Documentation**: [docs/AI_USAGE.md](docs/AI_USAGE.md) *(Detailed AI engineering & verification report)*
+- **Live Backend API (Render):** [https://landconnect-api-yykr.onrender.com](https://landconnect-api-yykr.onrender.com) *(Health check: [/health](https://landconnect-api-yykr.onrender.com/health))*[cite: 3, 5]
+- **Android APK Download (Expo EAS):** [Download LandConnect APK](https://expo.dev/accounts/kooder/projects/landconnect/builds/0eb2ba67-9a34-481b-a298-7be197b3e693)[cite: 3, 5]
+- **Demo Video Walkthrough:** [https://drive.google.com/file/d/1CfRCNgaDuS5VjtaLR4Hy4bLN1_nlKbtq/view?usp=drive_link](PASTE_YOUR_GOOGLE_DRIVE_VIDEO_LINK_HERE)[cite: 5]
+- **Supporting Documentation:**
+  - [Product Requirements Document (`docs/PRD.md`)](docs/PRD.md)
+  - [System Architecture (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)[cite: 3]
+  - [AI Tools Usage Summary (`docs/AI_USAGE.md`)](docs/AI_USAGE.md)[cite: 4, 5]
 
 ---
 
 ## Key Features & Capabilities
 
-### 1. Zero-PII Privacy & Dual-Layer RBAC
-- **Strict Anonymity**: Buyers, Sellers, and Brokers connect without exchanging phone numbers or email addresses. User identities are protected by a server-side `piiMask` serializer.
-- **Three Distinct Roles**:
-  - **Buyer**: Browse listings, drop pins, start 1-on-1 chats, join broker meetings, make/receive audio & video calls.
-  - **Seller**: Full buyer capabilities + create, edit, update status (`AVAILABLE`, `NEGOTIATION`, `SOLD`), and delete owned plots (`owner_id === currentUser.id`).
-  - **Broker**: Full seller capabilities + create and coordinate 3-way negotiation meeting rooms between buyers and sellers.
-- **Dual-Layer Access Control**: Enforced both on the client UI and via backend Express middleware (`401` unauthenticated, `403` unauthorized).
+### 1. Authentication, Email OTP & Role-Based Access Control
+- **Verified Sign-Up & Password Recovery:** New registrations and password resets are verified using a 6-digit email OTP with a 10-minute expiry window, dispatched over HTTPS via the Brevo Transactional Email API[cite: 3].
+- **3-Layer Disposable Email Guard:** Blocks temporary and fake accounts through syntax checks, a disposable domain blocklist, heuristic domain filtering, and live DNS MX record verification[cite: 3].
+- **Three Distinct Roles (Dual-Layer RBAC):** Enforced across both mobile navigation and Express middleware[cite: 3, 5]:
+  - **Buyer:** Browse UAE listings, filter plots, view map pins, message owners/brokers, join 3-way rooms, and place/receive audio and video calls[cite: 3, 5].
+  - **Owner (`seller` role):** Full buyer capabilities plus creating, editing, updating status (`AVAILABLE`, `NEGOTIATION`, `SOLD`), and deleting owned plots (`owner_id === currentUser.id`)[cite: 3, 5].
+  - **Broker:** Full owner capabilities plus creating and coordinating 3-way negotiation rooms connecting buyers and property owners[cite: 3, 5].
 
-### 2. Luxury Sotheby's-Grade Design System
-- **Palette**: Deep Estate Emerald (`#0B2B26`), Warm Alabaster (`#F8F7F4`), Pure Ivory (`#FFFFFF`), and Brushed Champagne Gold (`#C5A059`).
-- **Typography & Formatting**: Tracked uppercase eyebrow labels, tabular INR currency formatter (`₹45.00 Lakh`, `₹1.20 Cr`), and 16px radius elevated cards.
-- **Zero Emojis**: 100% vector iconography powered by `@expo/vector-icons` (`Ionicons`).
+### 2. Zero-PII Privacy Architecture
+- **No Phone Numbers or Exposed Emails:** LandConnect never collects or shares phone numbers[cite: 3]. Every public API response passes through a server-side allow-list serializer (`piiMask.ts`) that strips email addresses and password hashes[cite: 3, 5].
+- **Unique `LC-XXXXXX` Member Codes:** Users identify and invite participants into 3-way broker rooms by display name or unique `LC-XXXXXX` member ID rather than personal contact details[cite: 3].
 
-### 3. Interactive Map & Geolocation
-- **Native Platform Tiles**: Uses `PROVIDER_DEFAULT` map rendering for crisp performance across all zoom levels without third-party rate limits.
-- **Plot Markers & Floating Preview**: Tapping plot markers highlights the property on a floating bottom preview card.
-- **GPS & Pin-Drop Geotagging**: One-tap current device GPS capture via `expo-location` or manual map pin-drop when listing properties.
+### 3. UAE Land Listings, Maps & Geolocation
+- **AED Pricing & Multi-Photo Uploads:** Seeded with 12 UAE land plots across Dubai, Abu Dhabi, Sharjah, and Ras Al Khaimah formatted in `AED`, with multi-image property uploads (up to 5 images per listing) backed by Multer and Cloudinary[cite: 3].
+- **Interactive Map & GPS Geotagging:** Unified List/Map toggle on Explore plus a dedicated Map tab with plot markers, preview cards, one-tap device GPS capture via `expo-location`, and manual coordinate entry[cite: 3, 5].
 
-### 4. Real-Time Negotiation & 3-Way Broker Meetings
-- **Persistent Chat History**: PostgreSQL persistence synced via Socket.IO with optimistic UI updates.
-- **Direct & Group Meeting Rooms**: Brokers can create custom group meeting rooms and add buyer/seller participants to negotiate terms.
-- **Typing Indicators & Date Separators**: Live typing indicators and WhatsApp-style dynamic date pills (`Today`, `Yesterday`, `14 Nov 2026`).
+### 4. Real-Time Messaging & 3-Way Broker Meeting Rooms
+- **Persistent Socket.IO Chat:** PostgreSQL-backed 1-on-1 inquiry threads and 3-way broker negotiation rooms with live typing indicators and dynamic date separators[cite: 3, 5].
 
-### 5. In-App Audio & Video Calling (ZegoCloud SDK)
-- **Token-Authenticated Calls**: Calls are authorized through server-generated ZegoCloud Token04 credentials.
-- **Global Incoming Call Overlay**: Full-screen modal with caller name, role badge, and Accept/Decline actions.
-- **Dual-Mode Compatibility**:
-  - **Expo Go Mode**: Simulated luxury call interface with live Socket.IO signaling, timers, and audio/video toggle states.
-  - **Native APK Mode**: Dynamically mounts `@zegocloud/zego-uikit-prebuilt-call-rn` with hardware camera and microphone integration.
+### 5. In-App Audio & Video Calling (ZegoCloud Express Engine)
+- **Native WebRTC Voice & Video:** Built directly on `zego-express-engine-reactnative` with server-generated `04`-version AES-256-CBC tokens (`POST /api/v1/calls/token`)[cite: 3].
+- **Full Call Lifecycle:** Initiate audio or video calls, receive incoming call alerts with ringtone/vibration, accept or reject calls, mute microphone, toggle/flip camera, preserve earpiece/Bluetooth audio routing, end calls, and inspect call history logs[cite: 3].
 
 ---
 
-## System Architecture & Tech Stack
+## Tech Stack
 
-```
-┌────────────────────────────────────────────────────────┐
-│           LandConnect Mobile Client (Expo SDK 58)      │
-│  React Native • TypeScript • Zustand • React Navigation│
-└────────────────────────┬───────────────────────────────┘
-                         │ REST APIs & Socket.IO Signaling
-                         ▼
-┌────────────────────────────────────────────────────────┐
-│             LandConnect Backend (Node.js)              │
-│      Express • TypeScript • Socket.IO • Prisma ORM     │
-└────────────┬─────────────────────────────┬─────────────┘
-             │                             │
-             ▼                             ▼
-┌─────────────────────────┐   ┌──────────────────────────┐
-│   PostgreSQL (Supabase) │   │ Cloudinary (Photo Media) │
-│  Database with Pooling  │   │   Multipart Form-Data    │
-└─────────────────────────┘   └──────────────────────────┘
-```
-
-- **Backend (`server/`)**: Node.js, Express, TypeScript, Prisma ORM, PostgreSQL (Supabase), Socket.IO, Zod, bcrypt, jsonwebtoken, Multer, Cloudinary, Nodemailer.
-- **Mobile (`mobile/`)**: React Native, Expo Dev Client (SDK 58), TypeScript, React Navigation, Zustand, Axios, `react-native-maps`, `expo-location`, `socket.io-client`, ZegoCloud SDK.
-- **Hosting**: Render (Web Service), Supabase (PostgreSQL), Expo Application Services (EAS Build for APK).
+- **Mobile App (`mobile/`):** React Native (Expo SDK 58), TypeScript, React Navigation, Zustand, Axios, Expo SecureStore, `react-native-maps`, `expo-location`, `expo-audio`, `expo-notifications`, `expo-image-picker`, `expo-clipboard`, `socket.io-client`, `zego-express-engine-reactnative`[cite: 3, 5]
+- **Backend Server (`server/`):** Node.js, Express, TypeScript, Socket.IO, Prisma ORM, Zod, `bcrypt`, `jsonwebtoken`, Multer[cite: 3, 5]
+- **Database, Media & Cloud:** PostgreSQL (Supabase), Cloudinary, ZegoCloud Express Engine, Brevo Transactional Email API, Render, Expo EAS Build[cite: 3, 5]
 
 ---
 
 ## Pre-Seeded Demo Accounts
 
-The database includes three pre-configured accounts representing each role (all passwords: `Password@123`):
+You can sign in immediately using the **Quick Demo Access** buttons on the Login screen or enter any of these pre-seeded credentials (password for all demo accounts: `Password@123`):
 
-| Role | Email | Password | Permissions |
-|---|---|---|---|
-| **Buyer** | `buyer@landconnect.com` | `Password@123` | Browse, call, message, join rooms |
-| **Seller** | `seller@landconnect.com` | `Password@123` | Post listings, manage plots, 1-on-1 chat |
-| **Broker** | `broker@landconnect.com` | `Password@123` | Post listings, create 3-way meetings, broker badge |
+| Role | UI Label | Email | Password | Member Code |
+| :--- | :--- | :--- | :--- | :--- |
+| **Buyer** | Buyer | `buyer@landconnect.com` | `Password@123` | `LC-BYR101` |
+| **Seller** | Owner | `seller@landconnect.com` | `Password@123` | `LC-SLR101` |
+| **Broker** | Broker | `broker@landconnect.com` | `Password@123` | `LC-BRK101` |
 
-*(Quick-fill demo buttons are available directly on the login screen for rapid testing.)*
+> **Note on Email OTP Verification:** If registering a new account or testing **Forgot Password**, please check your **Spam / Junk** folder if the 6-digit verification code does not appear in your Primary inbox within 15 seconds.
 
 ---
 
-## Local Setup & Development
+## Local Setup & Execution
 
 ### Prerequisites
-- Node.js 18+ & npm
-- PostgreSQL database (or free Supabase project)
-- Cloudinary free-tier account (for image uploads)
-- Expo CLI (`npx expo`) and Expo Go on your mobile device
-
----
+- Node.js 20+ and npm
+- PostgreSQL database (or Supabase connection strings)
+- Free API credentials for Cloudinary, ZegoCloud, and Brevo
 
 ### 1. Backend Setup (`server/`)
 
@@ -106,67 +80,11 @@ npm install
 
 # Configure environment variables
 cp .env.example .env
-# Edit .env with your DATABASE_URL, DIRECT_URL, CLOUDINARY_*, ZEGO_*, and JWT secrets
+# Fill in DATABASE_URL, DIRECT_URL, JWT secrets, CLOUDINARY_*, ZEGO_*, BREVO_API_KEY, and EMAIL_FROM
 
-# Run database migrations & seed initial demo data
-npx prisma migrate dev
+# Run database migrations & seed UAE demo data
+npx prisma migrate deploy
 npx prisma db seed
 
 # Start development server
 npm run dev
-```
-
-Backend will be running at `http://localhost:5000` (Health check: `http://localhost:5000/health`).
-
----
-
-### 2. Mobile App Setup (`mobile/`)
-
-```bash
-cd mobile
-npm install
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env: set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_SOCKET_URL to your LAN IP (e.g. http://192.168.1.X:5000)
-
-# Start Expo development server
-npm run start
-```
-
-Scan the QR code with **Expo Go** on Android or iOS.
-
----
-
-### 3. Production Build & Deployment
-
-#### Backend Deployment (Render)
-1. Create a new **Web Service** on [Render](https://render.com) connected to your repository.
-2. Set **Root Directory**: `server`
-3. Set **Build Command**: `npm install && npm run build`
-4. Set **Start Command**: `npm run start` *(Runs `node dist/index.js` with `postinstall: prisma generate`)*
-5. Add all environment variables from `server/.env.example`.
-
-#### Mobile Standalone APK Build (Expo EAS)
-```bash
-cd mobile
-npx eas-cli login
-npx eas-cli build --platform android --profile preview
-```
-This generates a standalone installable Android APK file using the profile in `eas.json`.
-
----
-
-## Verification & Code Quality
-
-- **Mobile TypeScript Verification**:
-  ```bash
-  cd mobile && npx tsc --noEmit
-  # 0 errors
-  ```
-- **Backend TypeScript Verification**:
-  ```bash
-  cd server && npm run build
-  # 0 errors
-  ```
-- **Zero-Emoji Audit**: Verified clean with 0 emoji glyphs across all 32 mobile source files.
