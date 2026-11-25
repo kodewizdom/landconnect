@@ -5,7 +5,18 @@ export const registerSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   role: z.enum(["buyer", "seller", "broker"]),
-  phone: z.string().optional(),
+});
+
+export const requestRegisterOtpSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  role: z.enum(["buyer", "seller", "broker"]),
+});
+
+export const verifyRegisterOtpSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  otp: z.string().length(6, "Verification code must be exactly 6 digits"),
 });
 
 export const loginSchema = z.object({
@@ -33,6 +44,8 @@ export const resetPasswordSchema = z.object({
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type RequestRegisterOtpInput = z.infer<typeof requestRegisterOtpSchema>;
+export type VerifyRegisterOtpInput = z.infer<typeof verifyRegisterOtpSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;

@@ -100,6 +100,19 @@ export class RoomController {
       next(err);
     }
   }
+
+  async getRecentContacts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const contacts = await roomService.getRecentContacts(req.user.id);
+      res.status(200).json(contacts);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const roomController = new RoomController();

@@ -28,6 +28,9 @@ import {
   formatDateSeparator,
   getLocalDateKey,
 } from "../../utils/dateFormat";
+import { formatRoleBadge } from "../../utils/roleLabel";
+import { formatAED } from "../../theme";
+import { requestCallPermissions } from "../../utils/callPermissions";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatRoom">;
 
@@ -48,11 +51,20 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // Add Participant Modal for Brokers / Groups
   const [isAddUserModalVisible, setIsAddUserModalVisible] = useState(false);
+  const [recentContacts, setRecentContacts] = useState<UserSearchResult[]>([]);
   const [searchUserQuery, setSearchUserQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [selectedUserToAdd, setSelectedUserToAdd] = useState<UserSearchResult | null>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
+
+  useEffect(() => {
+    if (!isAddUserModalVisible) return;
+    roomApi
+      .getRecentContacts()
+      .then((contacts) => setRecentContacts(contacts))
+      .catch(() => {});
+  }, [isAddUserModalVisible]);
 
   // Header height for iOS keyboard offset
   const headerHeight = 56 + insets.top;
@@ -312,6 +324,11 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
       return;
     }
 
+    const permissionsGranted = await requestCallPermissions(callType);
+    if (!permissionsGranted) {
+      return;
+    }
+
     try {
       // 1. Validate participant token with backend
       await callApi.getToken(roomId);
@@ -360,29 +377,17 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const handleSelectDemoUser = async (email: string) => {
+  const handleSelectDemoUser = async (memberCode: string, fallbackRole: "buyer" | "seller") => {
     try {
-      const results = await roomApi.searchUsers(email);
-      const found = results.find((u) => u.email.toLowerCase() === email.toLowerCase()) || results[0];
+      const results = await roomApi.searchUsers(memberCode, fallbackRole);
+      const found =
+        results.find((u) => u.member_code?.toUpperCase() === memberCode.toUpperCase()) ||
+        results[0];
       if (found) {
         setSelectedUserToAdd(found);
-      } else {
-        setSelectedUserToAdd({
-          id: email,
-          email,
-          full_name: email.includes("buyer") ? "Demo Buyer" : "Demo Seller",
-          role: email.includes("buyer") ? "buyer" : "seller",
-          avatar_url: null,
-        });
       }
-    } catch {
-      setSelectedUserToAdd({
-        id: email,
-        email,
-        full_name: email.includes("buyer") ? "Demo Buyer" : "Demo Seller",
-        role: email.includes("buyer") ? "buyer" : "seller",
-        avatar_url: null,
-      });
+    } catch (err: any) {
+      console.warn("Demo user lookup failed:", err?.message);
     }
   };
 
@@ -458,7 +463,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
                 </Text>
                 <View style={styles.senderRoleTag}>
                   <Text style={styles.senderRoleText}>
-                    {(item.sender?.role || "USER").toUpperCase()}
+                    {formatRoleBadge(item.sender?.role)}
                   </Text>
                 </View>
               </View>
@@ -498,7 +503,7 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
         <View style={styles.listingContextBar}>
           <Ionicons name="business" size={16} color="#C5A059" />
           <Text style={styles.listingContextTitle} numberOfLines={1}>
-            {roomDetails.listing.title} • ₹{roomDetails.listing.price.toLocaleString("en-IN")}
+            {roomDetails.listing.title} • {formatAED(roomDetails.listing.price)}
           </Text>
         </View>
       )}
@@ -589,15 +594,52 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSub}>
-                Bring an additional registered buyer or seller into this secure 3-way negotiation room.
+                Bring an additional registered buyer or owner into this secure 3-way negotiation room.
               </Text>
+
+              {/* Recent Contacts */}
+              {recentContacts.length > 0 && (
+                <>
+                  <Text style={styles.inputLabel}>Recent Contacts</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.recentScrollView}
+                    contentContainerStyle={styles.recentScrollRow}
+                  >
+                    {recentContacts
+                      .filter(
+                        (c) =>
+                          !(roomDetails?.participants || []).some((p) => p.user_id === c.id)
+                      )
+                      .map((contact, idx) => (
+                        <TouchableOpacity
+                          key={contact.id || `room-recent-${idx}`}
+                          style={[
+                            styles.recentChip,
+                            selectedUserToAdd?.id === contact.id && styles.recentChipActive,
+                          ]}
+                          onPress={() => setSelectedUserToAdd(contact)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.recentChipName} numberOfLines={1}>
+                            {contact.full_name}
+                          </Text>
+                          <Text style={styles.recentChipMeta}>
+                            {formatRoleBadge(contact.role)} • {contact.member_code}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                </>
+              )}
 
               {/* Quick Select Demo Buttons */}
               <Text style={styles.inputLabel}>Quick Select Demo Accounts</Text>
               <View style={styles.chipsRow}>
                 <TouchableOpacity
                   style={styles.demoChip}
-                  onPress={() => handleSelectDemoUser("buyer@landconnect.com")}
+                  onPress={() => handleSelectDemoUser("LC-BYR101", "buyer")}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="person-add" size={14} color="#0284c7" />
@@ -606,21 +648,21 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
 
                 <TouchableOpacity
                   style={styles.demoChip}
-                  onPress={() => handleSelectDemoUser("seller@landconnect.com")}
+                  onPress={() => handleSelectDemoUser("LC-SLR101", "seller")}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="person-add" size={14} color="#059669" />
-                  <Text style={styles.demoChipText}>+ Demo Seller</Text>
+                  <Text style={styles.demoChipText}>+ Demo Owner</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Search by Email or Name */}
-              <Text style={styles.inputLabel}>Search Users by Email / Name</Text>
+              {/* Search by Name or LandConnect ID */}
+              <Text style={styles.inputLabel}>Search by Name or LandConnect ID</Text>
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 6 }} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Type email or name to search..."
+                  placeholder="Search by Name or LandConnect ID (e.g. LC-48219A)"
                   placeholderTextColor="#94a3b8"
                   value={searchUserQuery}
                   onChangeText={handleSearchUsers}
@@ -639,10 +681,10 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resultName}>{u.full_name}</Text>
-                        <Text style={styles.resultEmail}>{u.email}</Text>
+                        <Text style={styles.resultEmail}>{u.member_code}</Text>
                       </View>
                       <View style={styles.roleTag}>
-                        <Text style={styles.roleTagText}>{u.role.toUpperCase()}</Text>
+                        <Text style={styles.roleTagText}>{formatRoleBadge(u.role)}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -656,7 +698,9 @@ export const ChatRoomScreen: React.FC<Props> = ({ route, navigation }) => {
                   <View style={styles.selectedBadge}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.selectedName}>{selectedUserToAdd.full_name}</Text>
-                      <Text style={styles.selectedSub}>{selectedUserToAdd.email} • {selectedUserToAdd.role.toUpperCase()}</Text>
+                      <Text style={styles.selectedSub}>
+                        {formatRoleBadge(selectedUserToAdd.role)} • {selectedUserToAdd.member_code}
+                      </Text>
                     </View>
                     <TouchableOpacity onPress={() => setSelectedUserToAdd(null)}>
                       <Ionicons name="close-circle" size={18} color="#ef4444" />
@@ -939,6 +983,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginBottom: 12,
+  },
+  recentScrollView: {
+    marginBottom: 12,
+  },
+  recentScrollRow: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  recentChip: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 130,
+  },
+  recentChipActive: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#059669",
+  },
+  recentChipName: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  recentChipMeta: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#475569",
+    marginTop: 2,
   },
   demoChip: {
     flexDirection: "row",

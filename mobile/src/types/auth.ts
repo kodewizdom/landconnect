@@ -4,6 +4,7 @@ export interface User {
   id: string;
   full_name: string;
   email: string;
+  member_code: string;
   role: Role;
   avatar_url: string | null;
   allow_calls_from: string;
@@ -15,6 +16,7 @@ export interface MaskedUser {
   id: string;
   full_name: string;
   role: Role;
+  member_code: string;
   avatar_url: string | null;
   show_online: boolean;
 }
@@ -39,5 +41,16 @@ export interface RegisterData {
   email: string;
   password: string;
   role: Role;
-  phone?: string;
+}
+
+export interface RequestRegisterOtpResponse {
+  message: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  email: string;
+}
+
+export interface VerifyRegisterOtpData {
+  email: string;
+  otp: string;
 }

@@ -3,11 +3,26 @@ import {
   AuthResponse,
   LoginCredentials,
   RegisterData,
+  RequestRegisterOtpResponse,
+  VerifyRegisterOtpData,
   User,
   Role,
 } from "../types/auth";
 
 export const authApi = {
+  async requestRegistrationOtp(data: RegisterData): Promise<RequestRegisterOtpResponse> {
+    const response = await apiClient.post<RequestRegisterOtpResponse>(
+      "/auth/register/request-otp",
+      data
+    );
+    return response.data;
+  },
+
+  async verifyRegistrationOtp(data: VerifyRegisterOtpData): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>("/auth/register/verify-otp", data);
+    return response.data;
+  },
+
   async register(data: RegisterData): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>("/auth/register", data);
     return response.data;

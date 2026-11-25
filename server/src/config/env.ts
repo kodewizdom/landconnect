@@ -15,6 +15,8 @@ export const env = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
   ZEGO_APP_ID: process.env.ZEGO_APP_ID || "",
   ZEGO_SERVER_SECRET: process.env.ZEGO_SERVER_SECRET || "",
+  BREVO_API_KEY: process.env.BREVO_API_KEY || "",
+  EMAIL_FROM: process.env.EMAIL_FROM || "",
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
 };

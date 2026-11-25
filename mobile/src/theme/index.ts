@@ -2,4 +2,4 @@
 
 export { Colors } from './colors';
 export type { ColorKey } from './colors';
-export { Typography, formatINR, Shadows, Radii, Spacing } from './typography';
+export { Typography, formatAED, Shadows, Radii, Spacing } from './typography';

@@ -2,6 +2,24 @@ import { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service";
 
 export class AuthController {
+  async requestRegistrationOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await authService.requestRegistrationOtp(req.body);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async verifyRegistrationOtp(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await authService.verifyRegistrationOtp(req.body);
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await authService.register(req.body);

@@ -13,7 +13,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing } from "../../types/listing";
-import { Colors, formatINR } from "../../theme";
+import { Colors, formatAED } from "../../theme";
 
 export const MapTabScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -21,10 +21,10 @@ export const MapTabScreen: React.FC = () => {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
 
   const initialRegion = {
-    latitude: listings.length > 0 ? listings[0].latitude : 12.9716,
-    longitude: listings.length > 0 ? listings[0].longitude : 77.5946,
-    latitudeDelta: 0.35,
-    longitudeDelta: 0.35,
+    latitude: 24.95,
+    longitude: 55.15,
+    latitudeDelta: 1.8,
+    longitudeDelta: 1.8,
   };
 
   return (
@@ -43,7 +43,7 @@ export const MapTabScreen: React.FC = () => {
             onPress={() => setSelectedListing(item)}
           >
             <View style={styles.markerBadge}>
-              <Text style={styles.markerText}>{formatINR(item.price)}</Text>
+              <Text style={styles.markerText}>{formatAED(item.price)}</Text>
             </View>
           </Marker>
         ))}
@@ -69,7 +69,7 @@ export const MapTabScreen: React.FC = () => {
             />
 
             <View style={styles.previewInfo}>
-              <Text style={styles.previewPrice}>{formatINR(selectedListing.price)}</Text>
+              <Text style={styles.previewPrice}>{formatAED(selectedListing.price)}</Text>
               <Text style={styles.previewTitle} numberOfLines={1}>
                 {selectedListing.title}
               </Text>

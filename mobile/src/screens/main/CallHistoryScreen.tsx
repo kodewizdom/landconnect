@@ -18,6 +18,8 @@ import { callApi } from "../../api/call.api";
 import { useSocket } from "../../context/SocketContext";
 import { CallLog } from "../../types/chat";
 import { formatCallDate, formatTime12Hour } from "../../utils/dateFormat";
+import { requestCallPermissions } from "../../utils/callPermissions";
+import { formatRoleBadge } from "../../utils/roleLabel";
 
 export const CallHistoryScreen: React.FC = () => {
   const navigation =
@@ -85,6 +87,11 @@ export const CallHistoryScreen: React.FC = () => {
         "Call Back",
         "Direct call back is available from active negotiation rooms."
       );
+      return;
+    }
+
+    const permissionsGranted = await requestCallPermissions(item.call_type);
+    if (!permissionsGranted) {
       return;
     }
 
@@ -160,7 +167,7 @@ export const CallHistoryScreen: React.FC = () => {
           <View style={styles.detailsRow}>
             <View style={styles.roleTagSmall}>
               <Text style={styles.roleTagText}>
-                {counterpart?.role?.toUpperCase() || "USER"}
+                {formatRoleBadge(counterpart?.role)}
               </Text>
             </View>
             <Text style={styles.callTimestamp}>

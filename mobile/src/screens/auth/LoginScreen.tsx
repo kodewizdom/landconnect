@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../types/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
+import { formatRoleLabel } from "../../utils/roleLabel";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -71,7 +72,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => handleQuickDemoFill("buyer@landconnect.com")}
             >
               <Ionicons name="person-outline" size={14} color="#0B2B26" />
-              <Text style={styles.demoPillText}>Buyer</Text>
+              <Text style={styles.demoPillText}>{formatRoleLabel("buyer")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -79,7 +80,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => handleQuickDemoFill("seller@landconnect.com")}
             >
               <Ionicons name="home-outline" size={14} color="#0B2B26" />
-              <Text style={styles.demoPillText}>Seller</Text>
+              <Text style={styles.demoPillText}>{formatRoleLabel("seller")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -87,7 +88,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => handleQuickDemoFill("broker@landconnect.com")}
             >
               <Ionicons name="briefcase-outline" size={14} color="#0B2B26" />
-              <Text style={styles.demoPillText}>Broker</Text>
+              <Text style={styles.demoPillText}>{formatRoleLabel("broker")}</Text>
             </TouchableOpacity>
           </View>
         </View>

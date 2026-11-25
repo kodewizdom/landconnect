@@ -363,41 +363,82 @@ export class RoomService {
   }
 
   /**
-   * Search registered users for Brokers (excluding caller)
+   * Search registered users for Brokers by Name or LandConnect ID (zero PII)
    */
   async searchUsers(
     currentUserId: string,
     query: string,
     role?: string
-  ): Promise<Array<{ id: string; email: string; full_name: string; role: string; avatar_url: string | null }>> {
-    const where: any = {
-      id: { not: currentUserId },
-    };
-
-    if (role && (role === "buyer" || role === "seller" || role === "broker")) {
-      where.role = role as Role;
-    }
-
-    if (query && query.trim()) {
-      where.OR = [
-        { email: { contains: query.trim(), mode: "insensitive" } },
-        { full_name: { contains: query.trim(), mode: "insensitive" } },
-      ];
-    }
+  ): Promise<ReturnType<typeof maskUser>[]> {
+    const trimmed = query.trim();
+    const strippedCode = trimmed.toUpperCase().replace(/^LC-/, "");
+    const roleFilter =
+      role === "buyer" || role === "seller" || role === "broker"
+        ? (role as Role)
+        : undefined;
 
     const users = await prisma.user.findMany({
-      where,
-      take: 20,
-      select: {
-        id: true,
-        email: true,
-        full_name: true,
-        role: true,
-        avatar_url: true,
+      where: {
+        id: { not: currentUserId },
+        ...(roleFilter ? { role: roleFilter } : {}),
+        ...(trimmed
+          ? {
+              OR: [
+                { full_name: { contains: trimmed, mode: "insensitive" } },
+                { member_code: { contains: trimmed, mode: "insensitive" } },
+                ...(strippedCode
+                  ? [{ member_code: { contains: strippedCode, mode: "insensitive" as const } }]
+                  : []),
+              ],
+            }
+          : {}),
       },
+      take: 20,
+      orderBy: { full_name: "asc" },
     });
 
-    return users;
+    return users.map(maskUser);
+  }
+
+  /**
+   * Return masked recent contacts from the user's existing rooms
+   */
+  async getRecentContacts(currentUserId: string): Promise<ReturnType<typeof maskUser>[]> {
+    const myRooms = await prisma.roomParticipant.findMany({
+      where: { user_id: currentUserId },
+      select: { room_id: true },
+      orderBy: { joined_at: "desc" },
+      take: 30,
+    });
+
+    const roomIds = myRooms.map((r) => r.room_id);
+    if (roomIds.length === 0) {
+      return [];
+    }
+
+    const coParticipants = await prisma.roomParticipant.findMany({
+      where: {
+        room_id: { in: roomIds },
+        user_id: { not: currentUserId },
+      },
+      include: { user: true },
+      orderBy: { joined_at: "desc" },
+      take: 40,
+    });
+
+    const seen = new Set<string>();
+    const contacts: ReturnType<typeof maskUser>[] = [];
+    for (const participant of coParticipants) {
+      if (!seen.has(participant.user.id)) {
+        seen.add(participant.user.id);
+        contacts.push(maskUser(participant.user));
+        if (contacts.length >= 15) {
+          break;
+        }
+      }
+    }
+
+    return contacts;
   }
 
   private formatRoom(room: any): FormattedRoom {

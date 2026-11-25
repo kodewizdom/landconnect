@@ -17,7 +17,8 @@ import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { roomApi } from "../../api/room.api";
-import { Colors, formatINR } from "../../theme";
+import { Colors, formatAED } from "../../theme";
+import { formatRoleBadge } from "../../utils/roleLabel";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ListingDetail">;
 
@@ -158,7 +159,7 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           <View style={[styles.heroStatusPill, { backgroundColor: statusColor }]}>
             <Text style={styles.heroStatusText}>{statusLabel}</Text>
           </View>
-          <Text style={styles.heroPrice}>{formatINR(selectedListing.price)}</Text>
+          <Text style={styles.heroPrice}>{formatAED(selectedListing.price)}</Text>
           <Text style={styles.heroTitle}>{selectedListing.title}</Text>
         </View>
 
@@ -233,12 +234,12 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             <Ionicons name="person-circle" size={48} color={Colors.emerald} />
             <View style={styles.ownerDetails}>
               <Text style={styles.ownerName}>
-                {selectedListing.owner?.full_name || "Verified Land Seller"}
+                {selectedListing.owner?.full_name || "Verified Land Owner"}
               </Text>
               <View style={styles.ownerBadgeRow}>
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleBadgeText}>
-                    {selectedListing.owner?.role?.toUpperCase() || "SELLER"}
+                    {formatRoleBadge(selectedListing.owner?.role)}
                   </Text>
                 </View>
               </View>

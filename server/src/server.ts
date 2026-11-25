@@ -6,6 +6,7 @@ import { env } from "./config/env";
 import authRoutes from "./routes/auth.routes";
 import listingRoutes from "./routes/listing.routes";
 import roomRoutes from "./routes/room.routes";
+import userRoutes from "./routes/user.routes";
 import callRoutes from "./routes/call.routes";
 import { initSocketIO } from "./sockets";
 
@@ -41,6 +42,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/listings", listingRoutes);
 app.use("/api/v1/rooms", roomRoutes);
+app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/calls", callRoutes);
 
 // Global Error Handler

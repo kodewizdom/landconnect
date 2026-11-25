@@ -13,13 +13,39 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Platform,
+  Vibration,
 } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { Ionicons } from "@expo/vector-icons";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import type { AudioPlayer } from "expo-audio";
+import * as Notifications from "expo-notifications";
 import { useAuthStore } from "../store/useAuthStore";
 import { storage } from "../utils/storage";
 import { MaskedUser, CallType } from "../types/chat";
 import { navigate } from "../navigation/navigationRef";
+import { formatRoleBadge } from "../utils/roleLabel";
+import {
+  requestCallPermissions,
+  requestNotificationPermission,
+} from "../utils/callPermissions";
+
+// Configure foreground notification display cleanly
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch (err) {
+  console.warn("[Notifications] Foreground handler warning:", err);
+}
+
+const INCOMING_CALL_CHANNEL_ID = "incoming-calls";
 
 export interface IncomingCallData {
   callId: string;
@@ -46,6 +72,9 @@ export const useSocket = () => useContext(SocketContext);
 
 const { width } = Dimensions.get("window");
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const RINGTONE_ASSET = require("../../assets/sounds/ringtone.wav");
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -55,10 +84,118 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const ringtonePlayerRef = useRef<AudioPlayer | null>(null);
+  const activeNotificationIdRef = useRef<string | null>(null);
+
+  const stopIncomingAlert = useCallback(async () => {
+    try {
+      Vibration.cancel();
+    } catch {}
+
+    if (ringtonePlayerRef.current) {
+      try {
+        ringtonePlayerRef.current.pause();
+        ringtonePlayerRef.current.remove();
+      } catch {}
+      ringtonePlayerRef.current = null;
+    }
+
+    if (activeNotificationIdRef.current) {
+      const notifId = activeNotificationIdRef.current;
+      activeNotificationIdRef.current = null;
+      try {
+        await Notifications.dismissNotificationAsync(notifId);
+      } catch {}
+    }
+  }, []);
+
+  const startIncomingAlert = useCallback(
+    async (data: IncomingCallData) => {
+      // Stop any stale ringtone first
+      await stopIncomingAlert();
+
+      // 1. Play ringtone.wav in a continuous loop via expo-audio
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
+          interruptionMode: "duckOthers",
+        });
+        const player = createAudioPlayer(RINGTONE_ASSET);
+        player.loop = true;
+        player.volume = 1.0;
+        player.play();
+        ringtonePlayerRef.current = player;
+      } catch (err) {
+        console.warn("[Ringtone] Failed to start incoming ringtone:", err);
+      }
+
+      // 2. Start repeating haptic vibration pattern
+      try {
+        Vibration.vibrate([0, 800, 600], true);
+      } catch (err) {
+        console.warn("[Vibration] Failed to start vibration:", err);
+      }
+
+      // 3. Fire high-importance local notification (surfaces sound/banner if minimized)
+      try {
+        const callerRole = formatRoleBadge(data.caller?.role);
+        const callLabel = data.callType === "video" ? "Video" : "Audio";
+        const notifId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `Incoming ${callLabel} Call`,
+            body: `${data.caller?.full_name || "LandConnect User"} (${callerRole})`,
+            sound: "ringtone.wav",
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: {
+              callId: data.callId,
+              roomId: data.roomId || "",
+              callType: data.callType,
+            },
+          },
+          trigger:
+            Platform.OS === "android"
+              ? { channelId: INCOMING_CALL_CHANNEL_ID }
+              : null,
+        });
+        activeNotificationIdRef.current = notifId;
+      } catch (err) {
+        console.warn("[Notifications] Failed to present incoming call notification:", err);
+      }
+    },
+    [stopIncomingAlert]
+  );
 
   const clearIncomingCall = useCallback(() => {
+    stopIncomingAlert();
     setIncomingCall(null);
-  }, []);
+  }, [stopIncomingAlert]);
+
+  // Configure Android Notification Channel & request POST_NOTIFICATIONS on login
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const setupNotifications = async () => {
+      await requestNotificationPermission();
+
+      if (Platform.OS === "android") {
+        try {
+          await Notifications.setNotificationChannelAsync(INCOMING_CALL_CHANNEL_ID, {
+            name: "Incoming Calls",
+            importance: Notifications.AndroidImportance.MAX,
+            sound: "ringtone.wav",
+            vibrationPattern: [0, 800, 600],
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            bypassDnd: true,
+          });
+        } catch (err) {
+          console.warn("[Notifications] Channel setup warning:", err);
+        }
+      }
+    };
+
+    setupNotifications();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -68,6 +205,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      stopIncomingAlert();
       setSocket(null);
       setIsConnected(false);
       setIncomingCall(null);
@@ -101,20 +239,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       newSocket.on("call:incoming", (data: IncomingCallData) => {
-        if (isMounted) setIncomingCall(data);
+        if (!isMounted) return;
+        setIncomingCall(data);
+        startIncomingAlert(data);
       });
 
-      newSocket.on("call:rejected", (data: { callId: string }) => {
-        setIncomingCall((current) =>
-          current && current.callId === data.callId ? null : current
-        );
-      });
+      const handleDismissIncoming = (data: { callId?: string }) => {
+        setIncomingCall((current) => {
+          if (current && (!data?.callId || current.callId === data.callId)) {
+            stopIncomingAlert();
+            return null;
+          }
+          return current;
+        });
+      };
 
-      newSocket.on("call:ended", (data: { callId: string }) => {
-        setIncomingCall((current) =>
-          current && current.callId === data.callId ? null : current
-        );
-      });
+      newSocket.on("call:rejected", handleDismissIncoming);
+      newSocket.on("call:ended", handleDismissIncoming);
+      newSocket.on("call:cancelled", handleDismissIncoming);
 
       socketRef.current = newSocket;
       if (isMounted) {
@@ -126,24 +268,35 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
     return () => {
       isMounted = false;
+      stopIncomingAlert();
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, startIncomingAlert, stopIncomingAlert]);
 
-  const handleAcceptCall = () => {
+  const handleAcceptCall = async () => {
     if (!incomingCall) return;
 
-    if (socketRef.current) {
-      socketRef.current.emit("call:accept", { callId: incomingCall.callId });
+    const callData = { ...incomingCall };
+    await stopIncomingAlert();
+    setIncomingCall(null);
+
+    // Explicitly request Android runtime permissions before answering
+    const permissionsGranted = await requestCallPermissions(callData.callType);
+    if (!permissionsGranted) {
+      if (socketRef.current) {
+        socketRef.current.emit("call:reject", { callId: callData.callId });
+      }
+      return;
     }
 
-    const targetRoomId =
-      incomingCall.roomId || `call_${incomingCall.callId}`;
-    const callData = { ...incomingCall };
-    setIncomingCall(null);
+    if (socketRef.current) {
+      socketRef.current.emit("call:accept", { callId: callData.callId });
+    }
+
+    const targetRoomId = callData.roomId || `call_${callData.callId}`;
 
     navigate("CallScreen", {
       roomId: targetRoomId,
@@ -154,14 +307,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const handleRejectCall = () => {
+  const handleRejectCall = async () => {
     if (!incomingCall) return;
 
-    if (socketRef.current) {
-      socketRef.current.emit("call:reject", { callId: incomingCall.callId });
-    }
-
+    const targetCallId = incomingCall.callId;
+    await stopIncomingAlert();
     setIncomingCall(null);
+
+    if (socketRef.current) {
+      socketRef.current.emit("call:reject", { callId: targetCallId });
+    }
   };
 
   return (
@@ -206,7 +361,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
 
             <View style={styles.roleBadge}>
               <Text style={styles.roleText}>
-                {incomingCall?.caller.role?.toUpperCase() || "USER"}
+                {formatRoleBadge(incomingCall?.caller.role)}
               </Text>
             </View>
 

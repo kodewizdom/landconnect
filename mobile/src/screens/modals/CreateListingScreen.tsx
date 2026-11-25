@@ -17,7 +17,7 @@ import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { useListingStore } from "../../store/useListingStore";
 import { AreaUnit } from "../../types/listing";
-import { Colors, formatINR } from "../../theme";
+import { Colors } from "../../theme";
 
 export const CreateListingScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -29,8 +29,8 @@ export const CreateListingScreen: React.FC = () => {
   const [areaSize, setAreaSize] = useState("");
   const [areaUnit, setAreaUnit] = useState<AreaUnit>("acre");
   const [addressText, setAddressText] = useState("");
-  const [latitude, setLatitude] = useState("12.9716");
-  const [longitude, setLongitude] = useState("77.5946");
+  const [latitude, setLatitude] = useState("25.1972");
+  const [longitude, setLongitude] = useState("55.2744");
   const [selectedImages, setSelectedImages] = useState<
     Array<{
       uri: string;
@@ -267,10 +267,10 @@ export const CreateListingScreen: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionEyebrow}>PRICING</Text>
 
-        <Text style={styles.inputLabel}>Price in INR (₹) *</Text>
+        <Text style={styles.inputLabel}>Price in AED *</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. 4500000"
+          placeholder="e.g. 14500000"
           placeholderTextColor={Colors.muted}
           keyboardType="numeric"
           value={price}

@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { User, Role, LoginCredentials, RegisterData } from "../types/auth";
+import {
+  User,
+  Role,
+  LoginCredentials,
+  RegisterData,
+  RequestRegisterOtpResponse,
+  VerifyRegisterOtpData,
+} from "../types/auth";
 import { authApi } from "../api/auth.api";
 import { storage } from "../utils/storage";
 
@@ -15,6 +22,8 @@ interface AuthState {
   hydrateAuth: () => Promise<void>;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  requestRegistrationOtp: (data: RegisterData) => Promise<RequestRegisterOtpResponse>;
+  verifyRegistrationOtp: (data: VerifyRegisterOtpData) => Promise<void>;
   googleLogin: (idToken: string, role?: Role) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -124,6 +133,49 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (err: any) {
       const message =
         err.response?.data?.error || err.message || "Google sign-in failed.";
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+  requestRegistrationOtp: async (registerData: RegisterData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await authApi.requestRegistrationOtp(registerData);
+      set({ isLoading: false, error: null });
+      return res;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error ||
+        err.message ||
+        "Could not send verification code. Please check your email.";
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+  verifyRegistrationOtp: async (payload: VerifyRegisterOtpData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await authApi.verifyRegistrationOtp(payload);
+      await storage.setItem("landconnect_access_token", data.tokens.accessToken);
+      await storage.setItem("landconnect_refresh_token", data.tokens.refreshToken);
+      await storage.setItem("landconnect_user_profile", JSON.stringify(data.user));
+
+      set({
+        user: data.user,
+        role: data.user.role,
+        accessToken: data.tokens.accessToken,
+        refreshToken: data.tokens.refreshToken,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error ||
+        err.message ||
+        "Verification failed. Please check your 6-digit code.";
       set({ isLoading: false, error: message });
       throw new Error(message);
     }

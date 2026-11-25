@@ -1,9 +1,11 @@
 import { User, Role, Listing, ListingImage } from "@prisma/client";
+import { deriveDeterministicMemberCode } from "./memberCode";
 
 export interface MaskedUser {
   id: string;
   full_name: string;
   role: Role;
+  member_code: string;
   avatar_url: string | null;
   show_online: boolean;
 }
@@ -13,6 +15,7 @@ export interface UserSelfProfile {
   full_name: string;
   email: string;
   role: Role;
+  member_code: string;
   avatar_url: string | null;
   allow_calls_from: string;
   show_online: boolean;
@@ -42,13 +45,14 @@ export interface FormattedListing {
 
 /**
  * PII Masking Serializer
- * Whitelists only non-sensitive public user attributes for public feeds, chats, and calls.
+ * Whitelists only non-sensitive public user attributes for feeds, searches, chats, and calls.
  * Strips email, password_hash, phone numbers, and google_id.
  */
 export function maskUser(user: {
   id: string;
   full_name: string;
   role: Role;
+  member_code?: string | null;
   avatar_url?: string | null;
   show_online?: boolean;
 }): MaskedUser {
@@ -56,6 +60,7 @@ export function maskUser(user: {
     id: user.id,
     full_name: user.full_name,
     role: user.role,
+    member_code: user.member_code || deriveDeterministicMemberCode(user.id),
     avatar_url: user.avatar_url ?? null,
     show_online: user.show_online ?? true,
   };
@@ -71,6 +76,7 @@ export function sanitizeUserSelf(user: User): UserSelfProfile {
     full_name: user.full_name,
     email: user.email,
     role: user.role,
+    member_code: user.member_code || deriveDeterministicMemberCode(user.id),
     avatar_url: user.avatar_url,
     allow_calls_from: user.allow_calls_from,
     show_online: user.show_online,

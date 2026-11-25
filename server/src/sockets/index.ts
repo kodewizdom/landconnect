@@ -238,17 +238,36 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
             },
           });
 
-          // Send incoming call alert to the callee's personal channel
-          io.to(`user:${receiverId}`).emit("call:incoming", {
+          // Determine all recipients (handles both 1-on-1 direct & 3-way group meetings)
+          let notifyUserIds: string[] = [receiverId];
+          if (roomId) {
+            const roomParticipants = await prisma.roomParticipant.findMany({
+              where: { room_id: roomId, user_id: { not: userId } },
+              select: { user_id: true },
+            });
+            if (roomParticipants.length > 0) {
+              notifyUserIds = Array.from(
+                new Set([receiverId, ...roomParticipants.map((p) => p.user_id)])
+              );
+            }
+          }
+
+          // Send incoming call alert to all target recipients' personal channels
+          const incomingPayload = {
             callId: callLog.id,
             caller: maskUser(callLog.caller),
             callType: callLog.call_type,
             roomId: callLog.room_id,
+          };
+
+          notifyUserIds.forEach((targetId) => {
+            io.to(`user:${targetId}`).emit("call:incoming", incomingPayload);
           });
 
           // Notify caller of initiation
           socket.emit("call:initiated", {
             callId: callLog.id,
+            roomId: callLog.room_id,
             receiver: maskUser(callee),
           });
         } catch (err) {
@@ -319,41 +338,79 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
       }
     });
 
-    // End Call
-    socket.on("call:end", async (data: { callId: string }) => {
+    // End or Cancel Call
+    const handleEndOrCancelCall = async (data: { callId?: string; roomId?: string }) => {
       try {
-        const { callId } = data;
+        const { callId, roomId } = data || {};
 
-        const callLog = await prisma.callLog.findUnique({
-          where: { id: callId },
-        });
+        let callLog = callId
+          ? await prisma.callLog.findUnique({ where: { id: callId } })
+          : null;
+
+        // Fallback lookup when caller cancels before call:initiated arrives
+        if (!callLog && roomId) {
+          callLog = await prisma.callLog.findFirst({
+            where: {
+              room_id: roomId,
+              status: { in: [CallStatus.ringing, CallStatus.connected] },
+              OR: [{ caller_id: userId }, { receiver_id: userId }],
+            },
+            orderBy: { started_at: "desc" },
+          });
+        }
 
         if (!callLog) return;
 
+        const wasRinging = callLog.status === CallStatus.ringing;
         const endedAt = new Date();
-        const durationSeconds = Math.round(
-          (endedAt.getTime() - new Date(callLog.started_at).getTime()) / 1000
-        );
+        const durationSeconds = wasRinging
+          ? 0
+          : Math.round(
+              (endedAt.getTime() - new Date(callLog.started_at).getTime()) / 1000
+            );
 
         await prisma.callLog.update({
-          where: { id: callId },
+          where: { id: callLog.id },
           data: {
-            status: CallStatus.ended,
+            status: wasRinging && callLog.caller_id === userId ? CallStatus.missed : CallStatus.ended,
             ended_at: endedAt,
           },
         });
 
         const endPayload = {
           callId: callLog.id,
+          roomId: callLog.room_id,
           duration_seconds: durationSeconds,
+          cancelled: wasRinging,
         };
 
-        io.to(`user:${callLog.caller_id}`).emit("call:ended", endPayload);
-        io.to(`user:${callLog.receiver_id}`).emit("call:ended", endPayload);
+        // Determine all participants notified during initiation (1-on-1 or 3-way group)
+        let targetUserIds: string[] = [callLog.caller_id, callLog.receiver_id];
+        if (callLog.room_id) {
+          const participants = await prisma.roomParticipant.findMany({
+            where: { room_id: callLog.room_id },
+            select: { user_id: true },
+          });
+          if (participants.length > 0) {
+            targetUserIds = Array.from(
+              new Set([...targetUserIds, ...participants.map((p) => p.user_id)])
+            );
+          }
+        }
+
+        targetUserIds.forEach((uid) => {
+          io.to(`user:${uid}`).emit("call:ended", endPayload);
+          if (wasRinging) {
+            io.to(`user:${uid}`).emit("call:cancelled", endPayload);
+          }
+        });
       } catch (err) {
-        console.error(`[Socket.IO] Error in call:end:`, err);
+        console.error(`[Socket.IO] Error in call:end/cancel:`, err);
       }
-    });
+    };
+
+    socket.on("call:end", handleEndOrCancelCall);
+    socket.on("call:cancel", handleEndOrCancelCall);
 
     socket.on("disconnect", () => {
       console.log(`[Socket.IO] User ${userId} disconnected`);

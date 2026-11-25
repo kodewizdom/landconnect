@@ -1,5 +1,5 @@
 import "react-native-gesture-handler";
-import React, { Component, ErrorInfo, ReactNode } from "react";
+import React, { Component, ErrorInfo, ReactNode, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -7,6 +7,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { SocketProvider } from "./src/context/SocketContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { LoadingScreen } from "./src/screens/LoadingScreen";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -67,6 +68,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
@@ -76,6 +86,14 @@ export default function App() {
             <RootNavigator />
           </NavigationContainer>
         </SocketProvider>
+        {showSplash ? (
+          <View
+            style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}
+            pointerEvents="auto"
+          >
+            <LoadingScreen />
+          </View>
+        ) : null}
       </SafeAreaProvider>
     </ErrorBoundary>
   );

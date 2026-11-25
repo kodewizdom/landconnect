@@ -7,8 +7,12 @@ import { env } from "../config/env";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { emailService } from "./email.service";
 import { sanitizeUserSelf, UserSelfProfile } from "../utils/piiMask";
+import { generateUniqueMemberCode } from "../utils/memberCode";
+import { validateGenuineEmail } from "../utils/emailValidator";
 import {
   RegisterInput,
+  RequestRegisterOtpInput,
+  VerifyRegisterOtpInput,
   LoginInput,
   GoogleAuthInput,
   ResetPasswordInput,
@@ -28,11 +32,159 @@ export interface AuthResponse {
 
 export class AuthService {
   /**
-   * Register a new user with email and password
+   * Step 1 of verified signup: validate genuine non-disposable email + MX records,
+   * store temporary PendingRegistration, and email a 6-digit OTP via Brevo HTTP API.
+   */
+  async requestRegistrationOtp(
+    input: RequestRegisterOtpInput
+  ): Promise<{ message: string; email: string }> {
+    const normalizedEmail = await validateGenuineEmail(input.email);
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existingUser) {
+      const error = new Error("Email is already registered. Please sign in.");
+      (error as unknown as { statusCode: number }).statusCode = 409;
+      throw error;
+    }
+
+    const existingPending = await prisma.pendingRegistration.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existingPending) {
+      const elapsedMs = Date.now() - new Date(existingPending.last_sent_at).getTime();
+      if (elapsedMs < 30_000) {
+        const waitSecs = Math.max(1, Math.ceil((30_000 - elapsedMs) / 1000));
+        const error = new Error(
+          `Please wait ${waitSecs} seconds before requesting another verification code.`
+        );
+        (error as unknown as { statusCode: number }).statusCode = 429;
+        throw error;
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const trimmedName = input.name.trim();
+
+    await prisma.pendingRegistration.upsert({
+      where: { email: normalizedEmail },
+      update: {
+        full_name: trimmedName,
+        password_hash: passwordHash,
+        role: input.role as Role,
+        otp_hash: otpHash,
+        expires_at: expiresAt,
+        last_sent_at: new Date(),
+      },
+      create: {
+        email: normalizedEmail,
+        full_name: trimmedName,
+        password_hash: passwordHash,
+        role: input.role as Role,
+        otp_hash: otpHash,
+        expires_at: expiresAt,
+        last_sent_at: new Date(),
+      },
+    });
+
+    try {
+      await emailService.sendRegistrationOtpEmail(normalizedEmail, trimmedName, otp);
+    } catch (emailErr) {
+      // Clear pending row on email dispatch failure so user can retry right away
+      await prisma.pendingRegistration
+        .delete({ where: { email: normalizedEmail } })
+        .catch(() => {});
+      throw emailErr;
+    }
+
+    return {
+      message: "Verification code sent to your email.",
+      email: normalizedEmail,
+    };
+  }
+
+  /**
+   * Step 2 of verified signup: validate 6-digit OTP, create User with unique LC-XXXXXX code,
+   * delete temporary PendingRegistration, and return auth tokens.
+   */
+  async verifyRegistrationOtp(input: VerifyRegisterOtpInput): Promise<AuthResponse> {
+    const normalizedEmail = input.email.toLowerCase().trim();
+
+    const pending = await prisma.pendingRegistration.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!pending) {
+      const error = new Error(
+        "No pending registration found for this email. Please request a new code."
+      );
+      (error as unknown as { statusCode: number }).statusCode = 400;
+      throw error;
+    }
+
+    if (new Date(pending.expires_at).getTime() <= Date.now()) {
+      const error = new Error("Verification code has expired. Please request a new code.");
+      (error as unknown as { statusCode: number }).statusCode = 400;
+      throw error;
+    }
+
+    const isOtpValid = await bcrypt.compare(input.otp.trim(), pending.otp_hash);
+    if (!isOtpValid) {
+      const error = new Error("Invalid verification code. Please double-check and try again.");
+      (error as unknown as { statusCode: number }).statusCode = 400;
+      throw error;
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+    if (existingUser) {
+      await prisma.pendingRegistration.delete({ where: { id: pending.id } }).catch(() => {});
+      const error = new Error("Email is already registered. Please sign in.");
+      (error as unknown as { statusCode: number }).statusCode = 409;
+      throw error;
+    }
+
+    const memberCode = await generateUniqueMemberCode(prisma);
+
+    const [user] = await prisma.$transaction([
+      prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          full_name: pending.full_name,
+          password_hash: pending.password_hash,
+          role: pending.role,
+          member_code: memberCode,
+          auth_provider: AuthProvider.local,
+        },
+      }),
+      prisma.pendingRegistration.delete({
+        where: { id: pending.id },
+      }),
+    ]);
+
+    const tokens = this.generateTokens(user);
+
+    return {
+      tokens,
+      user: sanitizeUserSelf(user),
+    };
+  }
+
+  /**
+   * Direct register endpoint (validates genuine email and assigns unique member_code)
    */
   async register(input: RegisterInput): Promise<AuthResponse> {
+    const normalizedEmail = await validateGenuineEmail(input.email);
+
     const existing = await prisma.user.findUnique({
-      where: { email: input.email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
     });
 
     if (existing) {
@@ -42,13 +194,15 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(input.password, 10);
+    const memberCode = await generateUniqueMemberCode(prisma);
 
     const user = await prisma.user.create({
       data: {
-        email: input.email.toLowerCase().trim(),
+        email: normalizedEmail,
         full_name: input.name.trim(),
         password_hash: passwordHash,
         role: input.role as Role,
+        member_code: memberCode,
         auth_provider: AuthProvider.local,
       },
     });
@@ -62,10 +216,10 @@ export class AuthService {
   }
 
   /**
-   * Login with email and password
+   * Login with email and password (demo accounts & existing accounts preserved cleanly)
    */
   async login(input: LoginInput): Promise<AuthResponse> {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase().trim() },
     });
 
@@ -80,6 +234,15 @@ export class AuthService {
       const error = new Error("Invalid email or password");
       (error as unknown as { statusCode: number }).statusCode = 401;
       throw error;
+    }
+
+    // Opportunistically ensure legacy user has an assigned member_code
+    if (!user.member_code) {
+      const memberCode = await generateUniqueMemberCode(prisma);
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { member_code: memberCode },
+      });
     }
 
     const tokens = this.generateTokens(user);
@@ -125,7 +288,7 @@ export class AuthService {
     });
 
     if (!user) {
-      // Create new user with selected role (defaulting to buyer)
+      const memberCode = await generateUniqueMemberCode(prisma);
       user = await prisma.user.create({
         data: {
           email,
@@ -133,15 +296,17 @@ export class AuthService {
           google_id: googleId,
           auth_provider: AuthProvider.google,
           role: (input.role as Role) || Role.buyer,
+          member_code: memberCode,
           avatar_url: avatarUrl,
         },
       });
-    } else if (!user.google_id) {
-      // Link Google ID if existing account was local
+    } else if (!user.google_id || !user.member_code) {
+      const memberCode = user.member_code || (await generateUniqueMemberCode(prisma));
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
-          google_id: googleId,
+          google_id: user.google_id || googleId,
+          member_code: memberCode,
           avatar_url: user.avatar_url || avatarUrl,
         },
       });
@@ -191,16 +356,13 @@ export class AuthService {
     });
 
     if (!user) {
-      // Safe response to prevent user enumeration
       return { message: "If an account with that email exists, a reset OTP has been sent." };
     }
 
-    // Generate 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Invalidate any previous unused tokens for this user
     await prisma.passwordResetToken.updateMany({
       where: {
         user_id: user.id,
@@ -211,7 +373,6 @@ export class AuthService {
       },
     });
 
-    // Save new token
     await prisma.passwordResetToken.create({
       data: {
         user_id: user.id,
@@ -221,7 +382,6 @@ export class AuthService {
       },
     });
 
-    // Send email
     await emailService.sendPasswordResetEmail(user.email, otp);
 
     return { message: "Password reset OTP has been sent to your email." };
@@ -242,7 +402,6 @@ export class AuthService {
       throw error;
     }
 
-    // Find active non-expired reset token
     const tokens = await prisma.passwordResetToken.findMany({
       where: {
         user_id: user.id,
@@ -273,7 +432,6 @@ export class AuthService {
 
     const newPasswordHash = await bcrypt.hash(input.newPassword, 10);
 
-    // Atomically update password and mark token as used
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
@@ -292,7 +450,7 @@ export class AuthService {
    * Get current user profile (sanitized)
    */
   async getMe(userId: string): Promise<UserSelfProfile> {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: userId },
     });
 
@@ -300,6 +458,14 @@ export class AuthService {
       const error = new Error("User not found");
       (error as unknown as { statusCode: number }).statusCode = 404;
       throw error;
+    }
+
+    if (!user.member_code) {
+      const memberCode = await generateUniqueMemberCode(prisma);
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { member_code: memberCode },
+      });
     }
 
     return sanitizeUserSelf(user);

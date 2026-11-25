@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing, ListingStatus } from "../../types/listing";
-import { Colors, formatINR } from "../../theme";
+import { Colors, formatAED } from "../../theme";
 
 export const MyListingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -104,7 +104,7 @@ export const MyListingsScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.cardPrice}>{formatINR(item.price)}</Text>
+          <Text style={styles.cardPrice}>{formatAED(item.price)}</Text>
           <Text style={styles.cardMeta} numberOfLines={1}>
             {item.area_size} {item.area_unit.toUpperCase()} · {item.address_text}
           </Text>

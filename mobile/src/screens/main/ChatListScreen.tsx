@@ -23,6 +23,7 @@ import { useSocket } from "../../context/SocketContext";
 import { roomApi } from "../../api/room.api";
 import { Room, UserSearchResult } from "../../types/chat";
 import { formatTime12Hour } from "../../utils/dateFormat";
+import { formatRoleBadge } from "../../utils/roleLabel";
 
 export const ChatListScreen: React.FC = () => {
   const navigation =
@@ -43,9 +44,18 @@ export const ChatListScreen: React.FC = () => {
 
   // Participant selection state
   const [selectedParticipants, setSelectedParticipants] = useState<UserSearchResult[]>([]);
+  const [recentContacts, setRecentContacts] = useState<UserSearchResult[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (!isModalVisible) return;
+    roomApi
+      .getRecentContacts()
+      .then((contacts) => setRecentContacts(contacts))
+      .catch(() => {});
+  }, [isModalVisible]);
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -119,32 +129,18 @@ export const ChatListScreen: React.FC = () => {
     setSelectedParticipants((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // Quick select demo users
-  const handleAddDemoUser = async (email: string) => {
+  // Quick select demo users by LandConnect ID (zero PII)
+  const handleAddDemoUser = async (memberCode: string, fallbackRole: "buyer" | "seller") => {
     try {
-      const results = await roomApi.searchUsers(email);
-      const found = results.find((u) => u.email.toLowerCase() === email.toLowerCase()) || results[0];
+      const results = await roomApi.searchUsers(memberCode, fallbackRole);
+      const found =
+        results.find((u) => u.member_code?.toUpperCase() === memberCode.toUpperCase()) ||
+        results[0];
       if (found) {
         handleSelectUser(found);
-      } else {
-        const role = email.includes("buyer") ? "buyer" : "seller";
-        handleSelectUser({
-          id: email,
-          email,
-          full_name: role === "buyer" ? "Demo Buyer" : "Demo Seller",
-          role,
-          avatar_url: null,
-        });
       }
-    } catch {
-      const role = email.includes("buyer") ? "buyer" : "seller";
-      handleSelectUser({
-        id: email,
-        email,
-        full_name: role === "buyer" ? "Demo Buyer" : "Demo Seller",
-        role,
-        avatar_url: null,
-      });
+    } catch (err: any) {
+      console.warn("Demo user lookup failed:", err?.message);
     }
   };
 
@@ -162,7 +158,7 @@ export const ChatListScreen: React.FC = () => {
     if (selectedParticipants.length === 0) {
       Alert.alert(
         "No Participants Selected",
-        "Please select at least one Buyer or Seller to add to the negotiation."
+        "Please select at least one Buyer or Owner to add to the negotiation."
       );
       return;
     }
@@ -377,7 +373,7 @@ export const ChatListScreen: React.FC = () => {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSubtitle}>
-                Create a secure negotiation room connecting you, the buyer, and the land seller.
+                Create a secure negotiation room connecting you, the buyer, and the land owner.
               </Text>
 
               <Text style={styles.inputLabel}>Meeting / Property Title *</Text>
@@ -398,12 +394,49 @@ export const ChatListScreen: React.FC = () => {
                 onChangeText={setListingId}
               />
 
+              {/* Quick-Select Recent Contacts */}
+              {recentContacts.length > 0 && (
+                <>
+                  <Text style={styles.inputLabel}>Recent Contacts</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.recentScrollView}
+                    contentContainerStyle={styles.recentScrollRow}
+                  >
+                    {recentContacts.map((contact, idx) => {
+                      const alreadySelected = selectedParticipants.some(
+                        (p) => p.id === contact.id
+                      );
+                      return (
+                        <TouchableOpacity
+                          key={contact.id || `recent-contact-${idx}`}
+                          style={[
+                            styles.recentChip,
+                            alreadySelected && styles.recentChipActive,
+                          ]}
+                          onPress={() => handleSelectUser(contact)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={styles.recentChipName} numberOfLines={1}>
+                            {contact.full_name}
+                          </Text>
+                          <Text style={styles.recentChipMeta}>
+                            {formatRoleBadge(contact.role)} • {contact.member_code}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
+
               {/* Quick-Select Demo Participants */}
               <Text style={styles.inputLabel}>Quick Select Demo Accounts</Text>
               <View style={styles.chipsRow}>
                 <TouchableOpacity
                   style={styles.demoChip}
-                  onPress={() => handleAddDemoUser("buyer@landconnect.com")}
+                  onPress={() => handleAddDemoUser("LC-BYR101", "buyer")}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="person-add" size={14} color="#C5A059" />
@@ -412,21 +445,21 @@ export const ChatListScreen: React.FC = () => {
 
                 <TouchableOpacity
                   style={styles.demoChip}
-                  onPress={() => handleAddDemoUser("seller@landconnect.com")}
+                  onPress={() => handleAddDemoUser("LC-SLR101", "seller")}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="person-add" size={14} color="#C5A059" />
-                  <Text style={styles.demoChipText}>Demo Seller</Text>
+                  <Text style={styles.demoChipText}>Demo Owner</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Live Search by Email or Name */}
-              <Text style={styles.inputLabel}>Search Users by Email / Name</Text>
+              {/* Live Search by Name or LandConnect ID */}
+              <Text style={styles.inputLabel}>Search by Name or LandConnect ID</Text>
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={16} color="#A0A8A6" style={{ marginRight: 6 }} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Type email or name to search..."
+                  placeholder="Search by Name or LandConnect ID (e.g. LC-48219A)"
                   placeholderTextColor="#A0A8A6"
                   value={searchQuery}
                   onChangeText={handleSearchUsers}
@@ -445,10 +478,10 @@ export const ChatListScreen: React.FC = () => {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resultName}>{user.full_name}</Text>
-                        <Text style={styles.resultEmail}>{user.email}</Text>
+                        <Text style={styles.resultEmail}>{user.member_code}</Text>
                       </View>
                       <View style={styles.roleTagSmall}>
-                        <Text style={styles.roleTagText}>{user.role.toUpperCase()}</Text>
+                        <Text style={styles.roleTagText}>{formatRoleBadge(user.role)}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -461,7 +494,7 @@ export const ChatListScreen: React.FC = () => {
               </Text>
               {selectedParticipants.length === 0 ? (
                 <Text style={styles.noParticipantsText}>
-                  No participants added yet. Use the demo buttons above or search by email.
+                  No participants added yet. Pick a recent contact or search by Name or LandConnect ID.
                 </Text>
               ) : (
                 <View style={styles.selectedWrapper}>
@@ -469,7 +502,9 @@ export const ChatListScreen: React.FC = () => {
                     <View key={p.id || `selected-p-${idx}`} style={styles.selectedBadge}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.selectedName}>{p.full_name}</Text>
-                        <Text style={styles.selectedSub}>{p.email} - {p.role.toUpperCase()}</Text>
+                        <Text style={styles.selectedSub}>
+                          {formatRoleBadge(p.role)} • {p.member_code}
+                        </Text>
                       </View>
                       <TouchableOpacity onPress={() => handleRemoveParticipant(p.id)}>
                         <Ionicons name="close-circle" size={18} color="#8B1A1A" />
@@ -706,6 +741,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginBottom: 12,
+  },
+  recentScrollView: {
+    marginBottom: 12,
+  },
+  recentScrollRow: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  recentChip: {
+    backgroundColor: "#F8F7F4",
+    borderWidth: 1,
+    borderColor: "#E6E2D8",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 130,
+  },
+  recentChipActive: {
+    backgroundColor: "#F5EDD8",
+    borderColor: "#C5A059",
+  },
+  recentChipName: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#181C1B",
+  },
+  recentChipMeta: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#92610A",
+    marginTop: 2,
   },
   demoChip: {
     flexDirection: "row",

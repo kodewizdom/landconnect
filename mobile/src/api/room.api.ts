@@ -76,9 +76,14 @@ export const roomApi = {
   },
 
   async searchUsers(query = "", role = ""): Promise<UserSearchResult[]> {
-    const response = await apiClient.get<UserSearchResult[]>("/rooms/users/search", {
+    const response = await apiClient.get<UserSearchResult[]>("/users/search", {
       params: { q: query, role },
     });
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  async getRecentContacts(): Promise<UserSearchResult[]> {
+    const response = await apiClient.get<UserSearchResult[]>("/users/recent");
     return Array.isArray(response.data) ? response.data : [];
   },
 };

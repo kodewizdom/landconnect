@@ -16,6 +16,12 @@ router.get(
   (req, res, next) => roomController.searchUsers(req, res, next)
 );
 
+router.get(
+  "/users/recent",
+  authMiddleware,
+  (req, res, next) => roomController.getRecentContacts(req, res, next)
+);
+
 router.post(
   "/",
   authMiddleware,

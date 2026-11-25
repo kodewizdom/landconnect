@@ -1,4 +1,4 @@
-// LandConnect Luxury Design System — Typography Scale & INR Formatter
+// LandConnect Luxury Design System — Typography Scale & AED Formatter
 
 import { StyleSheet } from 'react-native';
 import { Colors } from './colors';
@@ -56,7 +56,7 @@ export const Typography = StyleSheet.create({
     color: Colors.slate,
   },
 
-  /** INR price display — tabular, prominent */
+  /** AED price display — tabular, prominent */
   price: {
     fontSize: 20,
     fontWeight: '700',
@@ -65,20 +65,20 @@ export const Typography = StyleSheet.create({
   },
 });
 
-// ── INR Formatter ───────────────────────────────────────────────────────────
+// ── AED Formatter ───────────────────────────────────────────────────────────
 
 /**
- * Formats a numeric INR amount into human-readable Lakh / Cr notation.
+ * Formats a numeric AED amount into human-readable K / M notation.
  * Examples:
- *   45_00_000  → ₹45.00 Lakh
- *   1_20_00_000 → ₹1.20 Cr
- *   95_000      → ₹95,000
+ *   14_500_000 -> AED 14.5M
+ *   850_000    -> AED 850K
+ *   95_000     -> AED 95K
  */
-export const formatINR = (value: number): string => {
+export const formatAED = (value: number): string => {
   if (!value && value !== 0) return '—';
-  if (value >= 10_000_000) return `₹${(value / 10_000_000).toFixed(2)} Cr`;
-  if (value >= 100_000)    return `₹${(value / 100_000).toFixed(2)} Lakh`;
-  return `₹${value.toLocaleString('en-IN')}`;
+  if (value >= 1_000_000) return `AED ${Number((value / 1_000_000).toFixed(2))}M`;
+  if (value >= 1_000)     return `AED ${Number((value / 1_000).toFixed(1))}K`;
+  return `AED ${value.toLocaleString('en-US')}`;
 };
 
 // ── Shadow Preset ───────────────────────────────────────────────────────────

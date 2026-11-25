@@ -4,6 +4,8 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateBody } from "../middlewares/validate.middleware";
 import {
   registerSchema,
+  requestRegisterOtpSchema,
+  verifyRegisterOtpSchema,
   loginSchema,
   googleAuthSchema,
   refreshTokenSchema,
@@ -14,6 +16,18 @@ import {
 const router = Router();
 
 // Public auth endpoints
+router.post(
+  "/register/request-otp",
+  validateBody(requestRegisterOtpSchema),
+  (req, res, next) => authController.requestRegistrationOtp(req, res, next)
+);
+
+router.post(
+  "/register/verify-otp",
+  validateBody(verifyRegisterOtpSchema),
+  (req, res, next) => authController.verifyRegistrationOtp(req, res, next)
+);
+
 router.post("/register", validateBody(registerSchema), (req, res, next) =>
   authController.register(req, res, next)
 );

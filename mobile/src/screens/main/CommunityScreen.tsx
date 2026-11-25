@@ -19,7 +19,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { Listing, AreaUnit, ListingStatus } from "../../types/listing";
-import { Colors, formatINR, Shadows, Radii } from "../../theme";
+import { Colors, formatAED, Shadows, Radii } from "../../theme";
+import { formatRoleBadge } from "../../utils/roleLabel";
 
 const { width } = Dimensions.get("window");
 
@@ -112,7 +113,7 @@ export const CommunityScreen: React.FC = () => {
           <View style={styles.badgeTopLeft}>{renderStatusPill(item.status)}</View>
           {/* Price tag bottom-right */}
           <View style={styles.priceTag}>
-            <Text style={styles.priceTagText}>{formatINR(item.price)}</Text>
+            <Text style={styles.priceTagText}>{formatAED(item.price)}</Text>
           </View>
         </View>
 
@@ -146,7 +147,7 @@ export const CommunityScreen: React.FC = () => {
               </Text>
               <View style={styles.roleChip}>
                 <Text style={styles.roleChipText}>
-                  {item.owner?.role?.toUpperCase() || "OWNER"}
+                  {formatRoleBadge(item.owner?.role)}
                 </Text>
               </View>
             </View>
@@ -155,7 +156,7 @@ export const CommunityScreen: React.FC = () => {
               <Ionicons name="time-outline" size={12} color={Colors.muted} />
               <Text style={styles.timeText}>
                 {item.created_at
-                  ? new Date(item.created_at).toLocaleDateString("en-IN", {
+                  ? new Date(item.created_at).toLocaleDateString("en-US", {
                       day: "numeric",
                       month: "short",
                     })
@@ -168,12 +169,12 @@ export const CommunityScreen: React.FC = () => {
     );
   };
 
-  // Compute map center
+  // Center map viewport across the UAE
   const initialRegion = {
-    latitude: listings.length > 0 ? listings[0].latitude : 12.9716,
-    longitude: listings.length > 0 ? listings[0].longitude : 77.5946,
-    latitudeDelta: 0.25,
-    longitudeDelta: 0.25,
+    latitude: 24.95,
+    longitude: 55.15,
+    latitudeDelta: 1.8,
+    longitudeDelta: 1.8,
   };
 
   const hasActiveFilters = Object.keys(filters).length > 0;
@@ -306,7 +307,7 @@ export const CommunityScreen: React.FC = () => {
                 onPress={() => setSelectedMapListing(item)}
               >
                 <View style={styles.mapPin}>
-                  <Text style={styles.mapPinText}>{formatINR(item.price)}</Text>
+                  <Text style={styles.mapPinText}>{formatAED(item.price)}</Text>
                 </View>
               </Marker>
             ))}
@@ -334,7 +335,7 @@ export const CommunityScreen: React.FC = () => {
                 />
                 <View style={styles.bottomCardInfo}>
                   <Text style={styles.bottomCardPrice}>
-                    {formatINR(selectedMapListing.price)}
+                    {formatAED(selectedMapListing.price)}
                   </Text>
                   <Text style={styles.bottomCardTitle} numberOfLines={1}>
                     {selectedMapListing.title}
@@ -381,11 +382,11 @@ export const CommunityScreen: React.FC = () => {
             <Text style={styles.modalTitle}>Filter Listings</Text>
 
             {/* Price Range */}
-            <Text style={styles.filterSectionLabel}>PRICE RANGE (₹)</Text>
+            <Text style={styles.filterSectionLabel}>PRICE RANGE (AED)</Text>
             <View style={styles.rowInputs}>
               <TextInput
                 style={[styles.filterInput, { flex: 1, marginRight: 8 }]}
-                placeholder="Min Price"
+                placeholder="Min Price (AED)"
                 placeholderTextColor={Colors.muted}
                 keyboardType="numeric"
                 value={filterMinPrice}
@@ -393,7 +394,7 @@ export const CommunityScreen: React.FC = () => {
               />
               <TextInput
                 style={[styles.filterInput, { flex: 1 }]}
-                placeholder="Max Price"
+                placeholder="Max Price (AED)"
                 placeholderTextColor={Colors.muted}
                 keyboardType="numeric"
                 value={filterMaxPrice}

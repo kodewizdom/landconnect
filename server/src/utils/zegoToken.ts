@@ -10,8 +10,39 @@ export interface ZegoTokenOptions {
 }
 
 /**
- * Generates a standard ZegoCloud Token04 using AES-128-CBC encryption.
- * The token format conforms to Zego's official client SDK Token04 specs.
+ * Generates a random 16-byte ASCII IV matching ZegoCloud's Token04 specification.
+ */
+function makeRandomIv(): string {
+  const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
+  let result = "";
+  for (let i = 0; i < 16; i++) {
+    result += chars.charAt(crypto.randomInt(0, chars.length));
+  }
+  return result;
+}
+
+/**
+ * Determines the AES-CBC algorithm from ZegoCloud ServerSecret length (16/24/32 bytes).
+ * Standard ZegoCloud console ServerSecrets are 32 bytes -> AES-256-CBC.
+ */
+function getAlgorithm(keyBuffer: Buffer): string {
+  switch (keyBuffer.length) {
+    case 16:
+      return "aes-128-cbc";
+    case 24:
+      return "aes-192-cbc";
+    case 32:
+      return "aes-256-cbc";
+    default:
+      throw new Error(
+        `Invalid ZEGO_SERVER_SECRET length: ${keyBuffer.length} bytes (expected 16, 24, or 32)`
+      );
+  }
+}
+
+/**
+ * Generates a standard ZegoCloud Token04 using AES-128/192/256-CBC encryption
+ * matching ZEGOCLOUD's official zegoServerAssistant specification.
  */
 export function generateZegoToken({
   appId,
@@ -20,17 +51,8 @@ export function generateZegoToken({
   roomId,
   effectiveTimeInSeconds = 3600,
 }: ZegoTokenOptions): string {
-  // If credentials are dummy/placeholder in development, return a mock token
   if (!serverSecret || serverSecret === "your-zego-server-secret" || !appId || appId === 123456789) {
-    const mockPayload = Buffer.from(
-      JSON.stringify({
-        app_id: appId || 123456789,
-        user_id: userId,
-        room_id: roomId || "general",
-        created_at: Date.now(),
-      })
-    ).toString("base64");
-    return `04mock_${mockPayload}`;
+    throw new Error("ZegoCloud credentials (ZEGO_APP_ID / ZEGO_SERVER_SECRET) are not configured on the server.");
   }
 
   const createTime = Math.floor(Date.now() / 1000);
@@ -40,15 +62,15 @@ export function generateZegoToken({
   const payloadObject = {
     room_id: roomId || "",
     privilege: {
-      1: 1, // LoginRoom
-      2: 1, // PublishStream
+      "1": 1, // LoginRoom
+      "2": 1, // PublishStream (Audio & Video)
     },
     stream_id_list: null,
   };
 
   const tokenInfo = {
-    app_id: appId,
-    user_id: userId,
+    app_id: Number(appId),
+    user_id: String(userId),
     nonce,
     ctime: createTime,
     expire: expireTime,
@@ -57,18 +79,20 @@ export function generateZegoToken({
 
   const plainText = JSON.stringify(tokenInfo);
 
-  // Generate 16-byte random IV
-  const iv = crypto.randomBytes(16);
+  // Full secret key buffer (e.g. 32 bytes for standard Zego ServerSecret -> AES-256-CBC)
+  const key = Buffer.from(serverSecret, "utf-8");
+  const algorithm = getAlgorithm(key);
 
-  // Zego secret key: 16 bytes (derived from first 16 characters or 16 bytes of secret)
-  const key = Buffer.from(serverSecret.substring(0, 16), "utf-8");
+  // 16-byte random IV
+  const ivStr = makeRandomIv();
+  const iv = Buffer.from(ivStr, "utf-8");
 
-  // AES-128-CBC encryption with PKCS7 padding
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+  // AES-CBC encryption with PKCS7 padding
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
   cipher.setAutoPadding(true);
   const encrypted = Buffer.concat([cipher.update(plainText, "utf-8"), cipher.final()]);
 
-  // Pack binary data:
+  // Pack binary data per Zego Token04 spec:
   // 8 bytes: expireTime (BigInt64BE)
   // 2 bytes: iv length (UInt16BE)
   // 16 bytes: iv
@@ -95,8 +119,8 @@ export function generateTokenForUser(userId: string, roomId?: string): {
   roomId?: string;
   userId: string;
 } {
-  const appId = env.ZEGO_APP_ID ? parseInt(env.ZEGO_APP_ID, 10) : 123456789;
-  const serverSecret = env.ZEGO_SERVER_SECRET || "your-zego-server-secret";
+  const appId = env.ZEGO_APP_ID ? parseInt(env.ZEGO_APP_ID, 10) : 0;
+  const serverSecret = env.ZEGO_SERVER_SECRET || "";
 
   const token = generateZegoToken({
     appId,

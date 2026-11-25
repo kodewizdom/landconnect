@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,34 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
 import { useAuthStore } from "../../store/useAuthStore";
+import { authApi } from "../../api/auth.api";
+import { formatRoleBadge } from "../../utils/roleLabel";
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user, role, logout } = useAuthStore();
+  const { user, role, logout, setUser } = useAuthStore();
+  const [copiedId, setCopiedId] = useState(false);
+
+  useEffect(() => {
+    if (!user?.member_code) {
+      authApi
+        .getMe()
+        .then((freshUser) => setUser(freshUser))
+        .catch(() => {});
+    }
+  }, [user?.member_code, setUser]);
+
+  const handleCopyMemberCode = async () => {
+    if (!user?.member_code) return;
+    await Clipboard.setStringAsync(user.member_code);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
 
   const isSellerOrBroker = role === "seller" || role === "broker";
 
@@ -35,7 +55,7 @@ export const ProfileScreen: React.FC = () => {
     .toUpperCase();
 
   const roleLabel = role
-    ? `${role.toUpperCase()} MEMBER`
+    ? `${formatRoleBadge(role)} MEMBER`
     : "MEMBER";
 
   return (
@@ -49,6 +69,24 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{roleLabel}</Text>
         </View>
+        {user?.member_code ? (
+          <TouchableOpacity
+            style={styles.memberIdPill}
+            onPress={handleCopyMemberCode}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.memberIdPrefix}>MEMBER ID</Text>
+            <Text style={styles.memberIdCode}>{user.member_code}</Text>
+            <Ionicons
+              name={copiedId ? "checkmark-circle" : "copy-outline"}
+              size={14}
+              color={copiedId ? "#4ADE80" : "#C5A059"}
+            />
+            <Text style={[styles.memberIdAction, copiedId && { color: "#4ADE80" }]}>
+              {copiedId ? "Copied" : "Copy"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <ScrollView style={styles.scrollContent} contentContainerStyle={styles.scrollInner}>
@@ -86,7 +124,7 @@ export const ProfileScreen: React.FC = () => {
           <View style={styles.privacyRow}>
             <Ionicons name="shield-checkmark" size={20} color="#1A6B45" style={styles.menuIcon} />
             <Text style={styles.privacyText}>
-              Your email and phone number are never exposed to other buyers, sellers, or brokers. All communication goes through LandConnect's zero-PII secure channel.
+              Your email and phone number are never exposed to other buyers, owners, or brokers. All communication goes through LandConnect's zero-PII secure channel.
             </Text>
           </View>
         </View>
@@ -149,6 +187,35 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.0,
+  },
+  memberIdPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#143D36",
+    borderWidth: 1,
+    borderColor: "rgba(197, 160, 89, 0.55)",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginTop: 10,
+    gap: 8,
+  },
+  memberIdPrefix: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.0,
+    color: "#9CA5A3",
+  },
+  memberIdCode: {
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1.0,
+    color: "#FFFFFF",
+  },
+  memberIdAction: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#C5A059",
   },
   scrollContent: {
     flex: 1,

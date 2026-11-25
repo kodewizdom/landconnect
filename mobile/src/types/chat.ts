@@ -5,8 +5,10 @@ export interface MaskedUser {
   id: string;
   full_name: string;
   role: ParticipantRole;
+  member_code?: string;
   avatar_url: string | null;
   is_verified?: boolean;
+  show_online?: boolean;
 }
 
 export interface RoomParticipant {
@@ -82,8 +84,9 @@ export interface CallHistoryResponse {
 
 export interface UserSearchResult {
   id: string;
-  email: string;
   full_name: string;
   role: ParticipantRole;
+  member_code: string;
   avatar_url: string | null;
+  show_online?: boolean;
 }

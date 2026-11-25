@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,26 +16,44 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../types/navigation";
 import { Role } from "../../types/auth";
 import { useAuthStore } from "../../store/useAuthStore";
+import { formatRoleLabel } from "../../utils/roleLabel";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 
 const ROLES: Array<{ key: Role; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { key: "buyer", label: "Buyer", desc: "Browse plots & initiate calls/chats", icon: "person-outline" },
-  { key: "seller", label: "Seller", desc: "Post & manage your own land listings", icon: "home-outline" },
-  { key: "broker", label: "Broker", desc: "List plots & coordinate 3-way meetings", icon: "briefcase-outline" },
+  { key: "buyer", label: formatRoleLabel("buyer"), desc: "Browse plots & initiate calls/chats", icon: "person-outline" },
+  { key: "seller", label: formatRoleLabel("seller"), desc: "List & sell your own land", icon: "home-outline" },
+  { key: "broker", label: formatRoleLabel("broker"), desc: "List plots & coordinate 3-way meetings", icon: "briefcase-outline" },
 ];
 
 export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+  const [step, setStep] = useState<"details" | "otp">("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
   const [selectedRole, setSelectedRole] = useState<Role>("buyer");
+  const [otp, setOtp] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const {
+    requestRegistrationOtp,
+    verifyRegistrationOtp,
+    isLoading,
+    error,
+    clearError,
+  } = useAuthStore();
 
-  const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleRequestOtp = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!name.trim() || !cleanEmail || !password.trim()) {
       Alert.alert("Missing Fields", "Full name, email, and password are required.");
       return;
     }
@@ -47,15 +65,35 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
     try {
       clearError();
-      await register({
+      const res = await requestRegistrationOtp({
         name: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password,
         role: selectedRole,
-        phone: phone.trim() || undefined,
+      });
+      setOtp("");
+      setResendCooldown(res.resendAfterSeconds || 30);
+      setStep("otp");
+    } catch (err: any) {
+      Alert.alert("Verification Error", err.message || "Could not send verification code.");
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const cleanOtp = otp.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      Alert.alert("Invalid Code", "Please enter the 6-digit verification code from your email.");
+      return;
+    }
+
+    try {
+      clearError();
+      await verifyRegistrationOtp({
+        email: email.trim().toLowerCase(),
+        otp: cleanOtp,
       });
     } catch (err: any) {
-      Alert.alert("Registration Error", err.message || "Could not register account");
+      Alert.alert("Verification Failed", err.message || "Invalid or expired verification code.");
     }
   };
 
@@ -67,7 +105,9 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       {/* Header Crest Block */}
       <View style={styles.crestHeader}>
         <Text style={styles.brandTitle}>LANDCONNECT</Text>
-        <Text style={styles.brandSubtitle}>Create Your Account</Text>
+        <Text style={styles.brandSubtitle}>
+          {step === "details" ? "Create Your Account" : "Verify Your Email"}
+        </Text>
         <View style={styles.diamondSeparator} />
       </View>
 
@@ -79,97 +119,159 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           ) : null}
 
-          {/* Role Selection */}
-          <Text style={styles.sectionLabel}>SELECT YOUR ROLE</Text>
-          <View style={styles.roleContainer}>
-            {ROLES.map((r) => {
-              const isSelected = selectedRole === r.key;
-              return (
+          {step === "details" ? (
+            <>
+              {/* Role Selection */}
+              <Text style={styles.sectionLabel}>SELECT YOUR ROLE</Text>
+              <View style={styles.roleContainer}>
+                {ROLES.map((r) => {
+                  const isSelected = selectedRole === r.key;
+                  return (
+                    <TouchableOpacity
+                      key={r.key}
+                      style={[styles.roleCard, isSelected && styles.roleCardActive]}
+                      onPress={() => setSelectedRole(r.key)}
+                    >
+                      <Ionicons
+                        name={r.icon}
+                        size={20}
+                        color={isSelected ? "#C5A059" : "#636B69"}
+                        style={styles.roleIcon}
+                      />
+                      <View style={styles.roleTextColumn}>
+                        <Text style={[styles.roleLabel, isSelected && styles.roleLabelActive]}>
+                          {r.label}
+                        </Text>
+                        <Text style={styles.roleDesc}>{r.desc}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Input Fields */}
+              <Text style={styles.inputLabel}>FULL NAME *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Rahul Sharma"
+                placeholderTextColor="#9CA5A3"
+                value={name}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (error) clearError();
+                }}
+              />
+
+              <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. rahul@company.com"
+                placeholderTextColor="#9CA5A3"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (error) clearError();
+                }}
+              />
+
+              <Text style={styles.inputLabel}>PASSWORD (MIN 6 CHARACTERS) *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor="#9CA5A3"
+                secureTextEntry
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (error) clearError();
+                }}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, isLoading && styles.btnDisabled]}
+                onPress={handleRequestOtp}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#C5A059" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>
+                    SEND VERIFICATION CODE
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.otpInfoBox}>
+                <Ionicons name="mail-open-outline" size={22} color="#C5A059" />
+                <View style={styles.otpInfoTextCol}>
+                  <Text style={styles.otpInfoTitle}>6-Digit Code Sent</Text>
+                  <Text style={styles.otpInfoSub}>
+                    Enter the verification code sent to {email.trim().toLowerCase()}. Valid for 10 minutes.
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>VERIFICATION CODE *</Text>
+              <TextInput
+                style={[styles.input, styles.otpInput]}
+                placeholder="000000"
+                placeholderTextColor="#9CA5A3"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otp}
+                onChangeText={(text) => {
+                  setOtp(text.replace(/[^0-9]/g, ""));
+                  if (error) clearError();
+                }}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, isLoading && styles.btnDisabled]}
+                onPress={handleVerifyOtp}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#C5A059" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>
+                    VERIFY & CREATE ACCOUNT
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.otpActionsRow}>
                 <TouchableOpacity
-                  key={r.key}
-                  style={[styles.roleCard, isSelected && styles.roleCardActive]}
-                  onPress={() => setSelectedRole(r.key)}
+                  onPress={() => {
+                    clearError();
+                    setStep("details");
+                  }}
+                  disabled={isLoading}
                 >
-                  <Ionicons
-                    name={r.icon}
-                    size={20}
-                    color={isSelected ? "#C5A059" : "#636B69"}
-                    style={styles.roleIcon}
-                  />
-                  <View style={styles.roleTextColumn}>
-                    <Text style={[styles.roleLabel, isSelected && styles.roleLabelActive]}>
-                      {r.label}
-                    </Text>
-                    <Text style={styles.roleDesc}>{r.desc}</Text>
-                  </View>
+                  <Text style={styles.secondaryLinkText}>Edit Details</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
 
-          {/* Input Fields */}
-          <Text style={styles.inputLabel}>FULL NAME *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Rahul Sharma"
-            placeholderTextColor="#9CA5A3"
-            value={name}
-            onChangeText={(text) => {
-              setName(text);
-              if (error) clearError();
-            }}
-          />
-
-          <Text style={styles.inputLabel}>EMAIL ADDRESS *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. rahul@example.com"
-            placeholderTextColor="#9CA5A3"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (error) clearError();
-            }}
-          />
-
-          <Text style={styles.inputLabel}>PASSWORD (MIN 6 CHARACTERS) *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#9CA5A3"
-            secureTextEntry
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (error) clearError();
-            }}
-          />
-
-          <Text style={styles.inputLabel}>PHONE NUMBER (OPTIONAL — NEVER SHARED PUBLICLY)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. +91 9876543210"
-            placeholderTextColor="#9CA5A3"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, isLoading && styles.btnDisabled]}
-            onPress={handleRegister}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#C5A059" />
-            ) : (
-              <Text style={styles.primaryBtnText}>
-                REGISTER AS {selectedRole.toUpperCase()}
-              </Text>
-            )}
-          </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRequestOtp}
+                  disabled={isLoading || resendCooldown > 0}
+                >
+                  <Text
+                    style={[
+                      styles.secondaryLinkText,
+                      resendCooldown > 0 && styles.secondaryLinkDisabled,
+                    ]}
+                  >
+                    {resendCooldown > 0
+                      ? `Resend Code (${resendCooldown}s)`
+                      : "Resend Code"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
 
         <View style={styles.footer}>
@@ -314,6 +416,52 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.6,
+  },
+  otpInfoBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F5EDD8",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E6D5AA",
+    padding: 14,
+    marginBottom: 8,
+    gap: 12,
+  },
+  otpInfoTextCol: {
+    flex: 1,
+  },
+  otpInfoTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0B2B26",
+    marginBottom: 4,
+  },
+  otpInfoSub: {
+    fontSize: 12,
+    color: "#636B69",
+    lineHeight: 18,
+  },
+  otpInput: {
+    fontSize: 24,
+    fontWeight: "700",
+    letterSpacing: 8,
+    textAlign: "center",
+    color: "#0B2B26",
+  },
+  otpActionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  secondaryLinkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0B2B26",
+  },
+  secondaryLinkDisabled: {
+    color: "#9CA5A3",
   },
   footer: {
     flexDirection: "row",
