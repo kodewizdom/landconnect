@@ -13,7 +13,8 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export const MainTabNavigator: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 60 + (insets.bottom ?? 0);
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabBarHeight = 60 + insets.bottom;
 
   return (
     <Tab.Navigator
@@ -32,6 +33,8 @@ export const MainTabNavigator: React.FC = () => {
           shadowRadius: 16,
           elevation: 12,
           height: tabBarHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontSize: 10,

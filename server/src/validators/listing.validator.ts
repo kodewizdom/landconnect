@@ -1,73 +1,137 @@
 import { z } from "zod";
 
-const numericCoerce = (fieldName: string, min = 0) =>
-  z.preprocess((val) => {
-    if (typeof val === "string") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number({ required_error: `${fieldName} is required`, invalid_type_error: `${fieldName} must be a number` }).min(min, `${fieldName} must be greater than or equal to ${min}`));
+const numericCoerceGreaterThanZero = (fieldName: string) =>
+  z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const cleaned = val.replace(/,/g, "").trim();
+        if (cleaned === "") return undefined;
+        const parsed = Number(cleaned);
+        return Number.isNaN(parsed) ? val : parsed;
+      }
+      return val;
+    },
+    z
+      .number({
+        required_error: `${fieldName} is required`,
+        invalid_type_error: `${fieldName} must be a valid number`,
+      })
+      .gt(0, `${fieldName} must be greater than 0`)
+  );
+
+const coordinateCoerce = (fieldName: string, min: number, max: number) =>
+  z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const cleaned = val.trim();
+        if (cleaned === "") return undefined;
+        const parsed = Number(cleaned);
+        return Number.isNaN(parsed) ? val : parsed;
+      }
+      return val;
+    },
+    z
+      .number({
+        required_error: `${fieldName} is required`,
+        invalid_type_error: `${fieldName} must be a valid number`,
+      })
+      .min(min, `${fieldName} must be between ${min} and ${max}`)
+      .max(max, `${fieldName} must be between ${min} and ${max}`)
+  );
+
+const optionalNumericCoerceGreaterThanZero = (fieldName: string) =>
+  z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const cleaned = val.replace(/,/g, "").trim();
+        if (cleaned === "") return undefined;
+        const parsed = Number(cleaned);
+        return Number.isNaN(parsed) ? val : parsed;
+      }
+      return val;
+    },
+    z
+      .number({
+        invalid_type_error: `${fieldName} must be a valid number`,
+      })
+      .gt(0, `${fieldName} must be greater than 0`)
+      .optional()
+  );
+
+const optionalCoordinateCoerce = (fieldName: string, min: number, max: number) =>
+  z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const cleaned = val.trim();
+        if (cleaned === "") return undefined;
+        const parsed = Number(cleaned);
+        return Number.isNaN(parsed) ? val : parsed;
+      }
+      return val;
+    },
+    z
+      .number({
+        invalid_type_error: `${fieldName} must be a valid number`,
+      })
+      .min(min, `${fieldName} must be between ${min} and ${max}`)
+      .max(max, `${fieldName} must be between ${min} and ${max}`)
+      .optional()
+  );
 
 export const createListingSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters").max(150, "Title cannot exceed 150 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  price: numericCoerce("Price", 0.01),
-  area_size: numericCoerce("Area size", 0.01),
-  area_unit: z.enum(["sqft", "acre", "gunta", "ha"], {
-    errorMap: () => ({ message: "Area unit must be one of: sqft, acre, gunta, ha" }),
+  title: z
+    .string({ required_error: "Title is required" })
+    .trim()
+    .min(3, "Title must be at least 3 characters")
+    .max(120, "Title cannot exceed 120 characters"),
+  description: z
+    .string({ required_error: "Description is required" })
+    .trim()
+    .min(10, "Description must be at least 10 characters")
+    .max(2000, "Description cannot exceed 2000 characters"),
+  price: numericCoerceGreaterThanZero("Price"),
+  area_size: numericCoerceGreaterThanZero("Area size"),
+  area_unit: z.enum(["acre", "sqft", "gunta", "ha"], {
+    errorMap: () => ({ message: "Area unit must be one of: acre, sqft, gunta, ha" }),
   }),
-  address_text: z.string().min(3, "Address text must be at least 3 characters").max(255),
-  latitude: z.preprocess((val) => {
-    if (typeof val === "string") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(-90, "Latitude must be between -90 and 90").max(90, "Latitude must be between -90 and 90")),
-  longitude: z.preprocess((val) => {
-    if (typeof val === "string") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(-180, "Longitude must be between -180 and 180").max(180, "Longitude must be between -180 and 180")),
+  address_text: z
+    .string({ required_error: "Address is required" })
+    .trim()
+    .min(3, "Address must be at least 3 characters")
+    .max(250, "Address cannot exceed 250 characters"),
+  latitude: coordinateCoerce("Latitude", -90, 90),
+  longitude: coordinateCoerce("Longitude", -180, 180),
   status: z.enum(["available", "negotiation", "sold"]).optional().default("available"),
 });
 
 export const updateListingSchema = z.object({
-  title: z.string().min(3).max(150).optional(),
-  description: z.string().min(10).optional(),
-  price: z.preprocess((val) => {
-    if (typeof val === "string" && val !== "") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(0.01).optional()),
-  area_size: z.preprocess((val) => {
-    if (typeof val === "string" && val !== "") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(0.01).optional()),
-  area_unit: z.enum(["sqft", "acre", "gunta", "ha"]).optional(),
-  address_text: z.string().min(3).max(255).optional(),
-  latitude: z.preprocess((val) => {
-    if (typeof val === "string" && val !== "") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(-90).max(90).optional()),
-  longitude: z.preprocess((val) => {
-    if (typeof val === "string" && val !== "") {
-      const parsed = parseFloat(val);
-      return isNaN(parsed) ? val : parsed;
-    }
-    return val;
-  }, z.number().min(-180).max(180).optional()),
+  title: z
+    .string()
+    .trim()
+    .min(3, "Title must be at least 3 characters")
+    .max(120, "Title cannot exceed 120 characters")
+    .optional(),
+  description: z
+    .string()
+    .trim()
+    .min(10, "Description must be at least 10 characters")
+    .max(2000, "Description cannot exceed 2000 characters")
+    .optional(),
+  price: optionalNumericCoerceGreaterThanZero("Price"),
+  area_size: optionalNumericCoerceGreaterThanZero("Area size"),
+  area_unit: z
+    .enum(["acre", "sqft", "gunta", "ha"], {
+      errorMap: () => ({ message: "Area unit must be one of: acre, sqft, gunta, ha" }),
+    })
+    .optional(),
+  address_text: z
+    .string()
+    .trim()
+    .min(3, "Address must be at least 3 characters")
+    .max(250, "Address cannot exceed 250 characters")
+    .optional(),
+  latitude: optionalCoordinateCoerce("Latitude", -90, 90),
+  longitude: optionalCoordinateCoerce("Longitude", -180, 180),
   status: z.enum(["available", "negotiation", "sold"]).optional(),
 });
 
@@ -75,7 +139,7 @@ export const listingQuerySchema = z.object({
   search: z.string().optional(),
   minPrice: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().positive().optional()),
   maxPrice: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().positive().optional()),
-  areaUnit: z.enum(["sqft", "acre", "gunta", "ha"]).optional(),
+  areaUnit: z.enum(["acre", "sqft", "gunta", "ha"]).optional(),
   status: z.enum(["available", "negotiation", "sold"]).optional(),
   minLat: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().min(-90).max(90).optional()),
   maxLat: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().min(-90).max(90).optional()),

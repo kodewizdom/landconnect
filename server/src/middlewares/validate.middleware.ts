@@ -8,8 +8,10 @@ export function validateBody(schema: ZodSchema) {
       next();
     } catch (err) {
       if (err instanceof ZodError) {
+        const firstMessage = err.errors[0]?.message || "Validation failed";
         res.status(400).json({
-          error: "Validation failed",
+          error: firstMessage,
+          message: firstMessage,
           details: err.errors.map((e) => ({
             field: e.path.join("."),
             message: e.message,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,23 +11,35 @@ import {
   Modal,
   Dimensions,
   ScrollView,
+  Keyboard,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
-import { Listing, AreaUnit, ListingStatus } from "../../types/listing";
+import { useAuthStore } from "../../store/useAuthStore";
+import { Listing, AreaUnit, ListingStatus, ListingFilters } from "../../types/listing";
 import { Colors, formatAED, Shadows, Radii } from "../../theme";
 import { formatRoleBadge } from "../../utils/roleLabel";
 
 const { width } = Dimensions.get("window");
 
+type FilterChipKey = keyof Pick<
+  ListingFilters,
+  "search" | "minPrice" | "maxPrice" | "areaUnit" | "status"
+>;
+
 export const CommunityScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const {
     listings,
+    hasMore,
     isLoading,
     isRefreshing,
     filters,
@@ -40,8 +52,13 @@ export const CommunityScreen: React.FC = () => {
   const [searchText, setSearchText] = useState("");
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [selectedMapListing, setSelectedMapListing] = useState<Listing | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  // Filter Modal State
+  const isFetchingRef = useRef(false);
+  const prevUserIdRef = useRef<string | null>(currentUserId);
+
+  // Filter Modal Draft State
   const [filterMinPrice, setFilterMinPrice] = useState("");
   const [filterMaxPrice, setFilterMaxPrice] = useState("");
   const [filterUnit, setFilterUnit] = useState<AreaUnit | undefined>(undefined);
@@ -49,31 +66,195 @@ export const CommunityScreen: React.FC = () => {
 
   useEffect(() => {
     fetchListings(true);
+  }, [fetchListings]);
+
+  // Reset all filters & reload clean feed when user logs out or switches accounts
+  useEffect(() => {
+    if (prevUserIdRef.current !== currentUserId) {
+      prevUserIdRef.current = currentUserId;
+      isFetchingRef.current = false;
+      setLoadingMore(false);
+      setSearchText("");
+      setFilterMinPrice("");
+      setFilterMaxPrice("");
+      setFilterUnit(undefined);
+      setFilterStatus(undefined);
+      setSelectedMapListing(null);
+      clearFilters();
+    }
+  }, [currentUserId, clearFilters]);
+
+  // Keep draft inputs aligned with currently active filters when opening the Filter modal
+  useEffect(() => {
+    if (!isFilterModalVisible) return;
+    setFilterMinPrice(
+      filters.minPrice !== undefined && !isNaN(filters.minPrice)
+        ? String(filters.minPrice)
+        : ""
+    );
+    setFilterMaxPrice(
+      filters.maxPrice !== undefined && !isNaN(filters.maxPrice)
+        ? String(filters.maxPrice)
+        : ""
+    );
+    setFilterUnit(filters.areaUnit);
+    setFilterStatus(filters.status);
+  }, [isFilterModalVisible, filters]);
+
+  // Track Android keyboard height so Filter modal inputs stay clear of Gboard & 3-button nav
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
-  const handleSearchSubmit = () => {
-    setFilters({ search: searchText.trim() || undefined });
-  };
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: FilterChipKey; label: string }> = [];
+    if (filters.search?.trim()) {
+      chips.push({ key: "search", label: `"${filters.search.trim()}"` });
+    }
+    if (filters.minPrice !== undefined && !isNaN(filters.minPrice)) {
+      chips.push({ key: "minPrice", label: `Min ${formatAED(filters.minPrice)}` });
+    }
+    if (filters.maxPrice !== undefined && !isNaN(filters.maxPrice)) {
+      chips.push({ key: "maxPrice", label: `Max ${formatAED(filters.maxPrice)}` });
+    }
+    if (filters.areaUnit) {
+      chips.push({ key: "areaUnit", label: filters.areaUnit.toUpperCase() });
+    }
+    if (filters.status) {
+      chips.push({ key: "status", label: filters.status.toUpperCase() });
+    }
+    return chips;
+  }, [filters]);
 
-  const handleApplyFilters = () => {
-    setFilters({
-      minPrice: filterMinPrice ? parseFloat(filterMinPrice) : undefined,
-      maxPrice: filterMaxPrice ? parseFloat(filterMaxPrice) : undefined,
-      areaUnit: filterUnit,
-      status: filterStatus,
-    });
-    setIsFilterModalVisible(false);
-  };
+  const hasActiveFilters = activeFilterChips.length > 0;
+  const effectiveHasMore = hasMore && listings.length > 0;
 
-  const handleResetFilters = () => {
+  const handleClearAllFilters = useCallback(() => {
+    isFetchingRef.current = false;
+    setLoadingMore(false);
+    setSearchText("");
     setFilterMinPrice("");
     setFilterMaxPrice("");
     setFilterUnit(undefined);
     setFilterStatus(undefined);
-    setSearchText("");
     clearFilters();
+  }, [clearFilters]);
+
+  const handleRemoveSingleFilter = useCallback(
+    (key: FilterChipKey) => {
+      const remaining = activeFilterChips.filter((chip) => chip.key !== key);
+      if (remaining.length === 0) {
+        handleClearAllFilters();
+        return;
+      }
+
+      isFetchingRef.current = false;
+      setLoadingMore(false);
+      if (key === "search") setSearchText("");
+      if (key === "minPrice") setFilterMinPrice("");
+      if (key === "maxPrice") setFilterMaxPrice("");
+      if (key === "areaUnit") setFilterUnit(undefined);
+      if (key === "status") setFilterStatus(undefined);
+
+      setFilters({ [key]: undefined });
+    },
+    [activeFilterChips, handleClearAllFilters, setFilters]
+  );
+
+  const handleSearchSubmit = () => {
+    isFetchingRef.current = false;
+    setLoadingMore(false);
+    setFilters({ search: searchText.trim() || undefined });
+  };
+
+  const handleClearSearchInput = () => {
+    setSearchText("");
+    if (filters.search?.trim()) {
+      handleRemoveSingleFilter("search");
+    }
+  };
+
+  const handleApplyFilters = () => {
+    Keyboard.dismiss();
+    const cleanedMin = filterMinPrice.replace(/,/g, "").trim();
+    const cleanedMax = filterMaxPrice.replace(/,/g, "").trim();
+    const parsedMin = cleanedMin ? parseFloat(cleanedMin) : undefined;
+    const parsedMax = cleanedMax ? parseFloat(cleanedMax) : undefined;
+    const validMin = parsedMin !== undefined && !isNaN(parsedMin) && parsedMin > 0 ? parsedMin : undefined;
+    const validMax = parsedMax !== undefined && !isNaN(parsedMax) && parsedMax > 0 ? parsedMax : undefined;
+
+    isFetchingRef.current = false;
+    setLoadingMore(false);
+
+    if (
+      !searchText.trim() &&
+      validMin === undefined &&
+      validMax === undefined &&
+      !filterUnit &&
+      !filterStatus
+    ) {
+      clearFilters();
+    } else {
+      setFilters({
+        search: searchText.trim() || undefined,
+        minPrice: validMin,
+        maxPrice: validMax,
+        areaUnit: filterUnit,
+        status: filterStatus,
+      });
+    }
     setIsFilterModalVisible(false);
   };
+
+  const handleResetFilters = () => {
+    Keyboard.dismiss();
+    handleClearAllFilters();
+    setIsFilterModalVisible(false);
+  };
+
+  const handleRefresh = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    try {
+      await fetchListings(true);
+    } finally {
+      isFetchingRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [fetchListings]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (
+      !effectiveHasMore ||
+      isLoading ||
+      isRefreshing ||
+      loadingMore ||
+      isFetchingRef.current
+    ) {
+      return;
+    }
+    isFetchingRef.current = true;
+    setLoadingMore(true);
+    try {
+      await fetchListings(false);
+    } finally {
+      isFetchingRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [effectiveHasMore, isLoading, isRefreshing, loadingMore, fetchListings]);
 
   const renderStatusPill = (status: ListingStatus) => {
     const bg =
@@ -177,8 +358,6 @@ export const CommunityScreen: React.FC = () => {
     longitudeDelta: 1.8,
   };
 
-  const hasActiveFilters = Object.keys(filters).length > 0;
-
   return (
     <View style={styles.container}>
       {/* Search Bar */}
@@ -194,13 +373,13 @@ export const CommunityScreen: React.FC = () => {
           returnKeyType="search"
         />
         {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchText("")}>
+          <TouchableOpacity onPress={handleClearSearchInput}>
             <Ionicons name="close-circle-outline" size={18} color={Colors.muted} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* View mode toggle + filter row */}
+      {/* View mode toggle + filter row (fixed natural height) */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -248,7 +427,7 @@ export const CommunityScreen: React.FC = () => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.filterBtn, hasActiveFilters && { borderColor: Colors.gold }]}
+          style={[styles.filterBtn, hasActiveFilters && styles.filterBtnActive]}
           onPress={() => setIsFilterModalVisible(true)}
         >
           <Ionicons
@@ -256,41 +435,84 @@ export const CommunityScreen: React.FC = () => {
             size={18}
             color={hasActiveFilters ? Colors.gold : Colors.slate}
           />
+          {hasActiveFilters && <View style={styles.filterActiveDot} />}
         </TouchableOpacity>
       </ScrollView>
 
+      {/* Compact Active Filters Strip + 1-Tap Clear All */}
+      {hasActiveFilters && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.activeFiltersRow}
+          contentContainerStyle={styles.activeFiltersContent}
+        >
+          {activeFilterChips.map((chip) => (
+            <TouchableOpacity
+              key={chip.key}
+              style={styles.activeChip}
+              onPress={() => handleRemoveSingleFilter(chip.key)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.activeChipText}>{chip.label}</Text>
+              <Ionicons name="close" size={13} color={Colors.warning} />
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={styles.clearAllChip}
+            onPress={handleClearAllFilters}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.clearAllText}>Clear All</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
       {/* Main View: List or Map */}
       {viewMode === "list" ? (
-        <FlatList
-          data={listings}
-          keyExtractor={(item) => item.id}
-          renderItem={renderListingCard}
-          contentContainerStyle={styles.listContent}
-          refreshing={isRefreshing}
-          onRefresh={() => fetchListings(true)}
-          onEndReached={() => fetchListings(false)}
-          onEndReachedThreshold={0.5}
-          ListEmptyComponent={
-            !isLoading ? (
+        isLoading && listings.length === 0 ? (
+          <View style={styles.initialLoaderContainer}>
+            <ActivityIndicator size="large" color={Colors.emerald} />
+          </View>
+        ) : (
+          <FlatList
+            data={listings}
+            keyExtractor={(item) => item.id}
+            renderItem={renderListingCard}
+            contentContainerStyle={styles.listContent}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.4}
+            ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="business-outline" size={56} color={Colors.sand} />
                 <Text style={styles.emptyEyebrow}>NO LISTINGS FOUND</Text>
                 <Text style={styles.emptyBody}>
                   Try adjusting your search or filters
                 </Text>
+                {hasActiveFilters && (
+                  <TouchableOpacity
+                    style={styles.emptyResetBtn}
+                    onPress={handleClearAllFilters}
+                  >
+                    <Text style={styles.emptyResetText}>Clear Filters</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            ) : undefined
-          }
-          ListFooterComponent={
-            isLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={Colors.emerald}
-                style={{ marginVertical: 20 }}
-              />
-            ) : undefined
-          }
-        />
+            }
+            ListFooterComponent={
+              loadingMore && effectiveHasMore ? (
+                <ActivityIndicator
+                  size="small"
+                  color={Colors.emerald}
+                  style={{ marginVertical: 20 }}
+                />
+              ) : undefined
+            }
+          />
+        )
       ) : (
         <View style={styles.mapContainer}>
           <MapView
@@ -369,7 +591,15 @@ export const CommunityScreen: React.FC = () => {
         onRequestClose={() => setIsFilterModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+                paddingBottom: keyboardHeight > 0 ? 16 : Math.max(insets.bottom, 20),
+              },
+            ]}
+          >
             {/* Handle */}
             <View style={styles.modalHandle} />
 
@@ -381,83 +611,88 @@ export const CommunityScreen: React.FC = () => {
             </View>
             <Text style={styles.modalTitle}>Filter Listings</Text>
 
-            {/* Price Range */}
-            <Text style={styles.filterSectionLabel}>PRICE RANGE (AED)</Text>
-            <View style={styles.rowInputs}>
-              <TextInput
-                style={[styles.filterInput, { flex: 1, marginRight: 8 }]}
-                placeholder="Min Price (AED)"
-                placeholderTextColor={Colors.muted}
-                keyboardType="numeric"
-                value={filterMinPrice}
-                onChangeText={setFilterMinPrice}
-              />
-              <TextInput
-                style={[styles.filterInput, { flex: 1 }]}
-                placeholder="Max Price (AED)"
-                placeholderTextColor={Colors.muted}
-                keyboardType="numeric"
-                value={filterMaxPrice}
-                onChangeText={setFilterMaxPrice}
-              />
-            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Price Range */}
+              <Text style={styles.filterSectionLabel}>PRICE RANGE (AED)</Text>
+              <View style={styles.rowInputs}>
+                <TextInput
+                  style={[styles.filterInput, { flex: 1, marginRight: 8 }]}
+                  placeholder="Min Price (AED)"
+                  placeholderTextColor={Colors.muted}
+                  keyboardType="numeric"
+                  value={filterMinPrice}
+                  onChangeText={setFilterMinPrice}
+                />
+                <TextInput
+                  style={[styles.filterInput, { flex: 1 }]}
+                  placeholder="Max Price (AED)"
+                  placeholderTextColor={Colors.muted}
+                  keyboardType="numeric"
+                  value={filterMaxPrice}
+                  onChangeText={setFilterMaxPrice}
+                />
+              </View>
 
-            {/* Area Unit */}
-            <Text style={styles.filterSectionLabel}>AREA UNIT</Text>
-            <View style={styles.chipGroup}>
-              {(["acre", "sqft", "gunta", "ha"] as AreaUnit[]).map((unit) => (
-                <TouchableOpacity
-                  key={unit}
-                  style={[styles.chip, filterUnit === unit && styles.chipActive]}
-                  onPress={() => setFilterUnit(filterUnit === unit ? undefined : unit)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filterUnit === unit && styles.chipTextActive,
-                    ]}
+              {/* Area Unit */}
+              <Text style={styles.filterSectionLabel}>AREA UNIT</Text>
+              <View style={styles.chipGroup}>
+                {(["acre", "sqft", "gunta", "ha"] as AreaUnit[]).map((unit) => (
+                  <TouchableOpacity
+                    key={unit}
+                    style={[styles.chip, filterUnit === unit && styles.chipActive]}
+                    onPress={() => setFilterUnit(filterUnit === unit ? undefined : unit)}
                   >
-                    {unit.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        filterUnit === unit && styles.chipTextActive,
+                      ]}
+                    >
+                      {unit.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            {/* Status */}
-            <Text style={styles.filterSectionLabel}>AVAILABILITY</Text>
-            <View style={styles.chipGroup}>
-              {(["available", "negotiation", "sold"] as ListingStatus[]).map((st) => (
-                <TouchableOpacity
-                  key={st}
-                  style={[styles.chip, filterStatus === st && styles.chipActive]}
-                  onPress={() => setFilterStatus(filterStatus === st ? undefined : st)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filterStatus === st && styles.chipTextActive,
-                    ]}
+              {/* Status */}
+              <Text style={styles.filterSectionLabel}>AVAILABILITY</Text>
+              <View style={styles.chipGroup}>
+                {(["available", "negotiation", "sold"] as ListingStatus[]).map((st) => (
+                  <TouchableOpacity
+                    key={st}
+                    style={[styles.chip, filterStatus === st && styles.chipActive]}
+                    onPress={() => setFilterStatus(filterStatus === st ? undefined : st)}
                   >
-                    {st === "available"
-                      ? "AVAILABLE"
-                      : st === "negotiation"
-                      ? "NEGOTIATION"
-                      : "SOLD"}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        filterStatus === st && styles.chipTextActive,
+                      ]}
+                    >
+                      {st === "available"
+                        ? "AVAILABLE"
+                        : st === "negotiation"
+                        ? "NEGOTIATION"
+                        : "SOLD"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Action buttons */}
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters}>
+                  <Text style={styles.resetBtnText}>Reset</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
 
-            {/* Action buttons */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters}>
-                <Text style={styles.resetBtnText}>Reset</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.applyBtn} onPress={handleApplyFilters}>
-                <Text style={styles.applyBtnText}>Apply Filters</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity style={styles.applyBtn} onPress={handleApplyFilters}>
+                  <Text style={styles.applyBtnText}>Apply Filters</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -489,6 +724,8 @@ const styles = StyleSheet.create({
     color: Colors.charcoal,
   },
   toggleRow: {
+    flexGrow: 0,
+    flexShrink: 0,
     paddingBottom: 8,
   },
   toggleRowContent: {
@@ -496,6 +733,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  activeFiltersRow: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginBottom: 8,
+  },
+  activeFiltersContent: {
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  activeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: Colors.goldLight,
+    borderWidth: 1,
+    borderColor: Colors.gold,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  activeChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  clearAllChip: {
+    backgroundColor: Colors.emerald,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  clearAllText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.ivory,
+  },
+  initialLoaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyResetBtn: {
+    marginTop: 14,
+    backgroundColor: Colors.emerald,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  emptyResetText: {
+    color: Colors.ivory,
+    fontSize: 13,
+    fontWeight: "700",
   },
   togglePill: {
     flexDirection: "row",
@@ -520,12 +812,26 @@ const styles = StyleSheet.create({
     color: Colors.ivory,
   },
   filterBtn: {
+    position: "relative",
     borderWidth: 1,
     borderColor: Colors.sand,
     borderRadius: 8,
     padding: 8,
     justifyContent: "center",
     alignItems: "center",
+  },
+  filterBtnActive: {
+    borderColor: Colors.gold,
+    backgroundColor: Colors.goldLight,
+  },
+  filterActiveDot: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: Colors.gold,
   },
   listContent: {
     paddingTop: 8,
@@ -759,8 +1065,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.ivory,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    maxHeight: "85%",
   },
   modalHandle: {
     width: 40,

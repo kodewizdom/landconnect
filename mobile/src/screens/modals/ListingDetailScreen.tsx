@@ -13,12 +13,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RootStackParamList } from "../../types/navigation";
 import { useListingStore } from "../../store/useListingStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { roomApi } from "../../api/room.api";
 import { Colors, formatAED } from "../../theme";
-import { formatRoleBadge } from "../../utils/roleLabel";
+import { formatRoleBadge, formatRoleLabel } from "../../utils/roleLabel";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ListingDetail">;
 
@@ -26,6 +27,7 @@ const { width } = Dimensions.get("window");
 
 export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { listingId } = route.params;
+  const insets = useSafeAreaInsets();
   const { selectedListing, fetchListingById, isLoading } = useListingStore();
   const { user: currentUser } = useAuthStore();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -117,9 +119,20 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       ? "NEGOTIATION"
       : "SOLD";
 
+  const bottomBarPaddingBottom = Math.max(insets.bottom, 16) + 12;
+  const messageCtaLabel =
+    formatRoleLabel(selectedListing.owner?.role) === "Broker"
+      ? "Message Broker"
+      : "Message Owner";
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: bottomBarPaddingBottom + 96 },
+        ]}
+      >
         {/* Full-bleed Image Gallery */}
         <View style={styles.galleryContainer}>
           <ScrollView
@@ -254,7 +267,7 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       </ScrollView>
 
       {/* Bottom Sticky Action Bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: bottomBarPaddingBottom }]}>
         <TouchableOpacity
           style={styles.callIconBtn}
           onPress={() => handleCall("audio")}
@@ -284,7 +297,7 @@ export const ListingDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 color={Colors.ivory}
                 style={{ marginRight: 8 }}
               />
-              <Text style={styles.inquireBtnText}>Message Owner</Text>
+              <Text style={styles.inquireBtnText}>{messageCtaLabel}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -509,7 +522,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: Colors.ivory,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: Colors.sand,
     flexDirection: "row",
